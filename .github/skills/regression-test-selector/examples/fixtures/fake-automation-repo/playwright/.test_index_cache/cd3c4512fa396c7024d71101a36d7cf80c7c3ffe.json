@@ -1,0 +1,156 @@
+{
+  "meta": {
+    "framework": "playwright-ts",
+    "commit": "cd3c4512fa396c7024d71101a36d7cf80c7c3ffe",
+    "repo_dir": "C:\\Users\\ashut\\Desktop\\Regression test selector\\.github\\skills\\regression-test-selector\\examples\\fixtures\\fake-automation-repo\\playwright",
+    "total_tests": 5,
+    "in_regression_suite": 3,
+    "in_smoke_suite": 2,
+    "tests_with_jira": 5,
+    "pct_jira": "100.0%",
+    "tests_with_endpoints_or_routes": 5,
+    "pct_endpoints_or_routes": "100.0%"
+  },
+  "tests": [
+    {
+      "id": "tests/payment.spec.ts:6:[PAY-101] Process Credit Card with 3DS verification @regression @smoke @payments",
+      "file": "tests/payment.spec.ts",
+      "line": 6,
+      "title": "Payments API & Checkout > [PAY-101] Process Credit Card with 3DS verification @regression @smoke @payments",
+      "tags": [
+        "@payments",
+        "@regression",
+        "@smoke"
+      ],
+      "jira_keys": [
+        "PAY-101"
+      ],
+      "routes_visited": [
+        "/checkout/payment"
+      ],
+      "endpoints_called": [
+        "/api/v1/payments/process"
+      ],
+      "ui_labels": [
+        "Pay Now",
+        "Payment processed successfully",
+        "card-number-input",
+        "cvv-input"
+      ],
+      "page_objects_used": [
+        "PaymentPage"
+      ],
+      "in_regression_suite": true,
+      "in_smoke_suite": true
+    },
+    {
+      "id": "tests/payment.spec.ts:22:[PAY-102] Handle card decline with error message @regression",
+      "file": "tests/payment.spec.ts",
+      "line": 22,
+      "title": "Payments API & Checkout > [PAY-102] Handle card decline with error message @regression",
+      "tags": [
+        "@regression"
+      ],
+      "jira_keys": [
+        "PAY-102"
+      ],
+      "routes_visited": [
+        "/checkout/payment"
+      ],
+      "endpoints_called": [
+        "/api/v1/payments/process"
+      ],
+      "ui_labels": [
+        "Insufficient funds in account",
+        "Pay Now",
+        "card-number-input",
+        "cvv-input"
+      ],
+      "page_objects_used": [
+        "PaymentPage"
+      ],
+      "in_regression_suite": true,
+      "in_smoke_suite": false
+    },
+    {
+      "id": "tests/reporting.spec.ts:5:[REP-505] Download daily settlement CSV report @regression @reporting",
+      "file": "tests/reporting.spec.ts",
+      "line": 5,
+      "title": "Settlement Reporting > [REP-505] Download daily settlement CSV report @regression @reporting",
+      "tags": [
+        "@regression",
+        "@reporting"
+      ],
+      "jira_keys": [
+        "REP-505"
+      ],
+      "routes_visited": [
+        "/reports/settlement"
+      ],
+      "endpoints_called": [],
+      "ui_labels": [
+        "Export CSV"
+      ],
+      "page_objects_used": [],
+      "in_regression_suite": true,
+      "in_smoke_suite": false
+    },
+    {
+      "id": "tests/smoke-auth.spec.ts:6:[AUTH-401] Verify JWT token refresh and session expiry @smoke @auth",
+      "file": "tests/smoke-auth.spec.ts",
+      "line": 6,
+      "title": "Authentication & Session Smoke Tests > [AUTH-401] Verify JWT token refresh and session expiry @smoke @auth",
+      "tags": [
+        "@auth",
+        "@smoke"
+      ],
+      "jira_keys": [
+        "AUTH-401"
+      ],
+      "routes_visited": [
+        "/auth/login"
+      ],
+      "endpoints_called": [
+        "/api/v1/auth/token"
+      ],
+      "ui_labels": [
+        "Log In",
+        "Welcome Merchant Dashboard",
+        "password-field",
+        "username-field"
+      ],
+      "page_objects_used": [
+        "LoginPage"
+      ],
+      "in_regression_suite": false,
+      "in_smoke_suite": true
+    },
+    {
+      "id": "tests/unlinked-edge-cases.spec.ts:6:[PAY-8821] Decline transaction when cardToken returns ERR_CARD_EXPIRED",
+      "file": "tests/unlinked-edge-cases.spec.ts",
+      "line": 6,
+      "title": "Unlinked Payment Edge Cases > [PAY-8821] Decline transaction when cardToken returns ERR_CARD_EXPIRED",
+      "tags": [],
+      "jira_keys": [
+        "PAY-8821"
+      ],
+      "routes_visited": [
+        "/checkout/payment"
+      ],
+      "endpoints_called": [
+        "/api/v1/payments/process"
+      ],
+      "ui_labels": [
+        "Card has expired",
+        "Pay Now",
+        "card-number-input",
+        "cvv-input"
+      ],
+      "page_objects_used": [
+        "PaymentPage"
+      ],
+      "in_regression_suite": false,
+      "in_smoke_suite": false
+    }
+  ]
+}

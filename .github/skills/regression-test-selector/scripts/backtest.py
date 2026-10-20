@@ -127,6 +127,16 @@ def run_backtest(
         )
         time_saved_min = round((total_tests_in_suite - selected_count) * avg_duration_sec / 60, 1)
 
+        # Compute per-PR confusion matrix metrics
+        tp = pr_defects_caught
+        fn = pr_defects_total - pr_defects_caught
+        fp = max(0, selected_count - tp)
+        non_defect_tests = max(0, total_tests_in_suite - pr_defects_total)
+        tn = max(0, non_defect_tests - fp)
+
+        pr_precision = (tp / (tp + fp) * 100) if (tp + fp) > 0 else 0.0
+        pr_recall = (tp / (tp + fn) * 100) if (tp + fn) > 0 else 100.0
+
         pr_results.append({
             "diff_file": df,
             "pr_id": pr_id,
@@ -135,6 +145,12 @@ def run_backtest(
             "time_saved_minutes": time_saved_min,
             "known_defects_total": pr_defects_total,
             "known_defects_caught": pr_defects_caught,
+            "true_positives": tp,
+            "false_positives": fp,
+            "false_negatives": fn,
+            "true_negatives": tn,
+            "precision_pct": f"{pr_precision:.1f}%",
+            "recall_pct": f"{pr_recall:.1f}%",
             "coverage_gaps_count": len(analysis.get("coverage_gaps", [])),
             "smoke_triggered": analysis.get("smoke_triggered", False)
         })
@@ -152,9 +168,18 @@ def run_backtest(
         (caught_defects / total_known_defects * 100)
         if total_known_defects > 0 else 100.0
     )
+    total_tp = sum(r["true_positives"] for r in pr_results)
+    total_fp = sum(r["false_positives"] for r in pr_results)
+    total_fn = sum(r["false_negatives"] for r in pr_results)
+    total_tn = sum(r["true_negatives"] for r in pr_results)
+    overall_precision_pct = (
+        (total_tp / (total_tp + total_fp) * 100)
+        if (total_tp + total_fp) > 0 else 0.0
+    )
 
     return {
         "summary": {
+            "dataset_type": "SYNTHETIC_FIXTURE_DATASET",
             "total_prs_analyzed": num_prs,
             "full_suite_tests": total_tests_in_suite,
             "mean_selected_tests": mean_selected,
@@ -163,7 +188,18 @@ def run_backtest(
             "known_defects_tested": total_known_defects,
             "known_defects_caught": caught_defects,
             "known_defects_missed": missed_defects,
-            "recall_rate": f"{recall_rate_pct:.1f}%"
+            "true_positives": total_tp,
+            "false_positives": total_fp,
+            "false_negatives": total_fn,
+            "true_negatives": total_tn,
+            "recall_rate": f"{recall_rate_pct:.1f}%",
+            "precision_rate": f"{overall_precision_pct:.1f}%",
+            "assumptions": f"Assumes average test duration of {avg_duration_sec}s per test across single-threaded run.",
+            "limitations": [
+                "Small synthetic fixture dataset (5 diffs, 5 fake tests)",
+                "Historical recall measured against configured known defects CSV",
+                "Does not reflect multi-tenant production CI execution variability"
+            ]
         },
         "per_pr_breakdown": pr_results
     }
@@ -176,8 +212,34 @@ def format_backtest_table(results: Dict[str, Any]) -> str:
 
     lines = []
     lines.append("# Regression Test Selector: Historical Backtest Benchmark\n")
+    lines.append("> [!NOTE] **Dataset Notice: Synthetic Fixtures**")
+    lines.append(f"> Dataset: `{summary.get('dataset_type', 'FIXTURE')}` | {summary.get('assumptions', '')}\n")
     lines.append("## Executive Benchmark Summary\n")
     lines.append(f"- **Pull Requests Evaluated**: {summary['total_prs_analyzed']}")
+    lines.append(f"- **Full Suite Size**: {summary['full_suite_tests']} tests")
+    lines.append(f"- **Average Selected Tests per PR**: {summary['mean_selected_tests']} tests")
+    lines.append(f"- **Average Test Suite Reduction**: **{summary['mean_suite_reduction']}**")
+    lines.append(f"- **Total Time Saved Across Run**: ~{summary['total_engineering_time_saved_minutes']} minutes")
+    lines.append(f"- **Defect Recall Rate**: **{summary['recall_rate']}** ({summary['known_defects_caught']}/{summary['known_defects_tested']} defects caught)")
+    lines.append(f"- **Selection Precision**: **{summary.get('precision_rate', 'N/A')}** ({summary.get('true_positives', 0)} TP, {summary.get('false_positives', 0)} FP)")
+    lines.append(f"- **False Negative Defect Escapes**: **{summary['known_defects_missed']}**\n")
+
+    lines.append("## Per-Pull-Request Breakdown\n")
+    lines.append("| PR / Diff | Selected | Suite Reduction | Time Saved | TP | FP | FN | Precision | Recall | Gaps Flagged |")
+    lines.append("| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |")
+
+    for pr in breakdown:
+        lines.append(
+            f"| `{pr['diff_file']}` | {pr['selected_tests_count']} | {pr['suite_reduction_pct']} | "
+            f"~{pr['time_saved_minutes']} min | {pr.get('true_positives', 0)} | {pr.get('false_positives', 0)} | "
+            f"{pr.get('false_negatives', 0)} | {pr.get('precision_pct', 'N/A')} | {pr.get('recall_pct', 'N/A')} | {pr['coverage_gaps_count']} |"
+        )
+
+    lines.append("\n## Methodological Limitations")
+    for lim in summary.get("limitations", []):
+        lines.append(f"- {lim}")
+
+    return "\n".join(lines)
     lines.append(f"- **Full Suite Size**: {summary['full_suite_tests']} tests")
     lines.append(f"- **Average Selected Tests per PR**: {summary['mean_selected_tests']} tests")
     lines.append(f"- **Average Test Suite Reduction**: **{summary['mean_suite_reduction']}**")

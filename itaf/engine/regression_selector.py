@@ -50,35 +50,75 @@ class RegressionSelector:
         # 1. Identify which requirements are affected by this change
         affected_assessments = []
         for ass in assessments:
-            # Check if requirement interface matches any changed endpoint or route
-            req_interface = ass.service + " " + ass.title
             is_affected = False
+
+            # Check interface via mapped tests, suggested scenario, title, or ID
+            target_interfaces = []
+            if ass.suggested_test_scenario and "target_interface" in ass.suggested_test_scenario:
+                target_interfaces.append(ass.suggested_test_scenario["target_interface"].lower())
+            for m in ass.mapped_tests:
+                test = self.available_tests.get(m.test_id)
+                if test:
+                    target_interfaces.extend([ep.lower() for ep in test.endpoints_visited])
+                    target_interfaces.extend([r.lower() for r in test.routes_visited])
+
             for ep in change_endpoints:
-                if ep in ass.title or ep in ass.requirement_id or any(ep in m.evidence_summary for m in ass.mapped_tests):
-                    is_affected = True
-                    break
-            for jk in change_jira:
-                if jk in ass.requirement_id or any(jk in m.evidence_summary for m in ass.mapped_tests):
+                ep_clean = ep.lower().strip()
+                if (
+                    ep_clean in ass.title.lower()
+                    or ep_clean in ass.requirement_id.lower()
+                    or any(ep_clean in iface for iface in target_interfaces)
+                    or any(ep_clean in m.evidence_summary.lower() for m in ass.mapped_tests)
+                ):
                     is_affected = True
                     break
 
-            # If this is the primary feature under change
-            if is_affected or len(change_endpoints) == 0:
+            for rt in change_routes:
+                rt_clean = rt.lower().strip()
+                if any(rt_clean in iface for iface in target_interfaces):
+                    is_affected = True
+                    break
+
+            for jk in change_jira:
+                jk_clean = jk.upper().strip()
+                if jk_clean in ass.requirement_id.upper() or any(
+                    jk_clean in m.evidence_summary.upper() for m in ass.mapped_tests
+                ):
+                    is_affected = True
+                    break
+
+            # If no technical endpoints were resolved from diff, fall back conservatively to all requirements in domain
+            if is_affected or (len(change_endpoints) == 0 and len(change_routes) == 0 and len(change_jira) == 0):
                 affected_assessments.append(ass)
+
+        # Conservative selection fallback: if diff has evidence but no requirement matched
+        if not affected_assessments and (change_endpoints or change_routes or change_jira):
+            warning_notes.append(
+                "Change impact evidence did not conclusively link to known specifications. "
+                "Applying conservative domain fallback to prevent regression escapes."
+            )
+            affected_assessments = assessments
 
         # 2. Select tests mapped to affected requirements
         for ass in affected_assessments:
-            # Check if this affected requirement is missing coverage
-            if ass.coverage_status in (CoverageStatus.MISSING_COVERAGE, CoverageStatus.PARTIALLY_COVERED):
+            # Check if this affected requirement has missing, partial, or ambiguous coverage
+            if ass.coverage_status in (
+                CoverageStatus.MISSING_COVERAGE,
+                CoverageStatus.PARTIALLY_COVERED,
+                CoverageStatus.AMBIGUOUS,
+                CoverageStatus.BLOCKED
+            ):
                 if ass.suggested_test_scenario:
                     unmitigated_gaps.append({
                         "requirement_id": ass.requirement_id,
                         "title": ass.title,
+                        "status": ass.coverage_status.value,
                         "scenario": ass.suggested_test_scenario,
                         "failing_gates": ass.failing_gate_ids
                     })
+                    status_desc = "ambiguous/unspecified criteria" if ass.coverage_status == CoverageStatus.AMBIGUOUS else "inadequate test coverage"
                     warning_notes.append(
-                        f"Change impacts requirement '{ass.requirement_id}' which lacks adequate test coverage! "
+                        f"Change impacts requirement '{ass.requirement_id}' with {status_desc}! "
                         f"Failing gates: {', '.join(ass.failing_gate_ids) if ass.failing_gate_ids else 'None'}. "
                         f"Recommended new test: '{ass.suggested_test_scenario['title']}'."
                     )

@@ -170,4 +170,61 @@ class FeatureParser:
                 ambiguity_notes=ambiguity_notes
             ))
 
+        # Check for generic User Story / Feature sections if no specialized requirements were extracted
+        if not requirements:
+            section_matches = list(re.finditer(r'^###\s+(?:Requirement\s*\d*:\s*)?([^\n]+)', self.content, re.MULTILINE))
+            for i, sm in enumerate(section_matches):
+                sec_title = sm.group(1).strip()
+                start_pos = sm.end()
+                end_pos = section_matches[i+1].start() if i + 1 < len(section_matches) else len(self.content)
+                sec_body = self.content[start_pos:end_pos].strip()
+                line_no = self.content[:sm.start()].count("\n") + 1
+
+                bullets = [b.strip("-* ").strip() for b in sec_body.splitlines() if b.strip().startswith(("-", "*"))]
+                outcomes = []
+                # Check for status codes in bullets
+                for b_idx, b in enumerate(bullets):
+                    status_m = re.search(r'HTTP\s+([1-5][0-9]{2})', b, re.IGNORECASE)
+                    status_code = int(status_m.group(1)) if status_m else None
+                    rtype = RequirementType.POSITIVE if status_code and status_code < 300 else (
+                        RequirementType.SECURITY if status_code in (401, 403) else (
+                            RequirementType.NEGATIVE if status_code and status_code >= 400 else RequirementType.FUNCTIONAL
+                        )
+                    )
+                    outcomes.append(ExpectedOutcome(
+                        outcome_id=f"OUT-{primary_jira}-SEC{i+1}-{b_idx+1}",
+                        requirement_id=f"{primary_jira}-REQ-{i+1}",
+                        outcome_type=rtype,
+                        description=b,
+                        target_interface=target_interface,
+                        expected_status_code=status_code,
+                        provenance=Provenance(
+                            artifact_path=self.filepath,
+                            artifact_type="FEATURE_SPEC",
+                            line_number=line_no,
+                            identifier=primary_jira
+                        )
+                    ))
+
+                requirements.append(Requirement(
+                    requirement_id=f"{primary_jira}-REQ-{i+1}",
+                    title=sec_title,
+                    description=bullets[0] if bullets else sec_title,
+                    req_type=RequirementType.FUNCTIONAL,
+                    origin=RequirementOrigin.EXPLICIT_SPEC,
+                    domain=self.domain,
+                    service=self.service,
+                    interface=target_interface,
+                    mandatory=True,
+                    severity=RuleSeverity.MAJOR,
+                    expected_outcomes=outcomes,
+                    acceptance_criteria=bullets,
+                    provenance=Provenance(
+                        artifact_path=self.filepath,
+                        artifact_type="FEATURE_SPEC",
+                        line_number=line_no,
+                        identifier=primary_jira
+                    )
+                ))
+
         return requirements

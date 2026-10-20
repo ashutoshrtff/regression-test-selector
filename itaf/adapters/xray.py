@@ -59,8 +59,9 @@ class XrayAdapter(BaseTestManagementAdapter):
                             "source": "LIVE_XRAY_API"
                         }
                     return results
-            except Exception:
-                pass
+            except Exception as e:
+                import sys
+                sys.stderr.write(f"[XrayAdapter WARNING] Live API call failed ({e}). Reverting to fixture fallback.\n")
 
         # Fixture / Mock fallback (clearly labeled)
         if self.fixture_evidence_path and os.path.exists(self.fixture_evidence_path):

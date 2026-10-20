@@ -20,6 +20,12 @@ from itaf.core.models import (
     RegressionSelectionDecision
 )
 
+from itaf.core.cache import (
+    compute_file_hash,
+    ArtifactCache,
+    GLOBAL_ARTIFACT_CACHE
+)
+
 __all__ = [
     "RequirementType",
     "RequirementOrigin",
@@ -35,5 +41,8 @@ __all__ = [
     "RequirementTestMapping",
     "PolicyRule",
     "RequirementCoverageAssessment",
-    "RegressionSelectionDecision"
+    "RegressionSelectionDecision",
+    "compute_file_hash",
+    "ArtifactCache",
+    "GLOBAL_ARTIFACT_CACHE"
 ]

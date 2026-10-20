@@ -26,9 +26,11 @@ ASSERTION_PATTERNS = [
     # Status codes: expect(response.status()).toBe(200), expect(res.status).toBe(409), Assert.assertEquals(response.getStatusCode(), 200)
     (re.compile(r'status(?:Code)?\s*\)?\s*(?:==|\.toBe\(|\.toEqual\(|,)\s*([1-5][0-9]{2})', re.IGNORECASE), "STATUS_CODE"),
     # Error codes: errorCode == 'DUPLICATE_PAYMENT', expect(body.errorCode).toBe('...')
-    (re.compile(r'(?:errorCode|error_code|code)\s*(?:==|\.toBe\(|\.toEqual\(|,\s*["\'])\s*["\']([A-Z0-9_]{3,30})["\']', re.IGNORECASE), "ERROR_CODE"),
+    (re.compile(r'(?:errorCode|error_code|code)\s*\)?\s*(?:==|\.toBe\(|\.toEqual\(|,\s*["\'])\s*["\']([A-Z0-9_]{3,30})["\']', re.IGNORECASE), "ERROR_CODE"),
     # Headers: expect(headers['idempotency-key']), getHeader("Idempotency-Key")
     (re.compile(r'(?:header|headers|getHeader)\s*(?:\[|\()\s*["\']([a-zA-Z0-9_\-]+)["\']', re.IGNORECASE), "HEADER"),
+    # Idempotency assertions
+    (re.compile(r'(idempotency(?:_verified|_key)?)\s*\)?\s*(?:==|\.toBe\(|\.toEqual\(|,)\s*(true|["\'][^"\']+["\'])', re.IGNORECASE), "IDEMPOTENCY_FLAG"),
     # Retries: retry_count, attempts, retryAttempts
     (re.compile(r'(?:retry(?:Count|Attempts|_count)?|attempts)\s*(?:==|>=|\.toBe\()\s*([0-9]+)', re.IGNORECASE), "RETRY_COUNT"),
     # UI Text / messages: expect(page.getByText('...'))
@@ -109,9 +111,20 @@ class TestDiscoveryEngine:
             start_char = match.start()
             line_no = content[:start_char].count("\n") + 1
 
-            # Approximate test body
-            end_char = content.find("});", start_char)
-            body = content[start_char:end_char if end_char != -1 else start_char + 1500]
+            # Parse test block by matching matching braces
+            brace_idx = content.find("{", match.end() - 2)
+            if brace_idx != -1:
+                brace_count = 1
+                curr = brace_idx + 1
+                while curr < len(content) and brace_count > 0:
+                    if content[curr] == "{":
+                        brace_count += 1
+                    elif content[curr] == "}":
+                        brace_count -= 1
+                    curr += 1
+                body = content[start_char:curr]
+            else:
+                body = content[start_char:start_char + 1500]
 
             assertions = inspect_assertions_in_body(body, line_no)
 
@@ -177,8 +190,19 @@ class TestDiscoveryEngine:
             description = desc_m.group(1) if desc_m else method_name
             full_title = f"{class_name}.{method_name} - {description}"
 
-            end_char = content.find("\n    }", start_char)
-            body = content[start_char:end_char if end_char != -1 else start_char + 1500]
+            brace_idx = content.find("{", match.end() - 2)
+            if brace_idx != -1:
+                brace_count = 1
+                curr = brace_idx + 1
+                while curr < len(content) and brace_count > 0:
+                    if content[curr] == "{":
+                        brace_count += 1
+                    elif content[curr] == "}":
+                        brace_count -= 1
+                    curr += 1
+                body = content[start_char:curr]
+            else:
+                body = content[start_char:start_char + 1500]
 
             assertions = inspect_assertions_in_body(body, line_no)
 

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Intelligent Test Assurance Framework (ITAF) - Bank-Grade Quality Engineering</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Header -->
+    <header class="top-nav">
+      <div class="brand">
+        <div class="logo-badge">ITAF</div>
+        <div class="brand-text">
+          <h1>Intelligent Test Assurance Framework</h1>
+          <span class="subtext">Payments Services Platform &bull; Bank-Grade Quality Engineering</span>
+        </div>
+      </div>
+      <div class="nav-tabs" role="tablist">
+        <button class="tab-btn active" data-tab="screen-b">Coverage Assessment</button>
+        <button class="tab-btn" data-tab="screen-c">Requirement Detail</button>
+        <button class="tab-btn" data-tab="screen-d">Regression Selection</button>
+        <button class="tab-btn" data-tab="screen-a">Configuration</button>
+        <button class="tab-btn" data-tab="screen-e">Audit Report</button>
+      </div>
+      <div class="env-badge" id="env-badge">
+        <span class="indicator live"></span>
+        <span id="env-status-text">Adapter: Repo-Only (Local)</span>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="content-container">
+
+      <!-- SCREEN B: Coverage Summary (Default) -->
+      <section id="screen-b" class="tab-pane active">
+        <div class="pane-header">
+          <div>
+            <h2>Requirement & Quality Gate Coverage</h2>
+            <p class="description">Evaluating required business behaviors and mandatory technical gates against discovered automation tests.</p>
+          </div>
+          <button class="btn btn-primary" onclick="runAnalysis()">Run Re-Assessment</button>
+        </div>
+
+        <!-- Metrics Row -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span class="stat-label">Total Requirements</span>
+            <span class="stat-value" id="stat-total-reqs">--</span>
+            <span class="stat-hint">Across OpenAPI & Feature specs</span>
+          </div>
+          <div class="stat-card success">
+            <span class="stat-label">Fully Covered</span>
+            <span class="stat-value" id="stat-covered-reqs">--</span>
+            <span class="stat-hint" id="stat-covered-pct">--% of obligations</span>
+          </div>
+          <div class="stat-card warning">
+            <span class="stat-label">Partially Covered</span>
+            <span class="stat-value" id="stat-partial-reqs">--</span>
+            <span class="stat-hint">Lacks deep assertions</span>
+          </div>
+          <div class="stat-card danger">
+            <span class="stat-label">Missing Test Coverage</span>
+            <span class="stat-value" id="stat-missing-reqs">--</span>
+            <span class="stat-hint">Actionable gaps flagged</span>
+          </div>
+          <div class="stat-card blocker">
+            <span class="stat-label">Failing Hard Gates</span>
+            <span class="stat-value" id="stat-failing-gates">--</span>
+            <span class="stat-hint">Mandatory compliance blockers</span>
+          </div>
+        </div>
+
+        <!-- Gate Alert Banner -->
+        <div id="gate-alert-banner" class="alert-banner hidden">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <h4>Mandatory Quality Gate Failures Detected</h4>
+            <p id="gate-alert-details">One or more mandatory resilience, payment correctness, or security gates have zero verifying test assertions.</p>
+          </div>
+        </div>
+
+        <!-- Filters & Table -->
+        <div class="table-container">
+          <div class="table-toolbar">
+            <div class="filter-group">
+              <label>Status:</label>
+              <select id="filter-status" onchange="applyFilters()">
+                <option value="ALL">All Statuses</option>
+                <option value="COVERED">Covered</option>
+                <option value="PARTIALLY_COVERED">Partially Covered</option>
+                <option value="MISSING_COVERAGE">Missing Coverage</option>
+              </select>
+            </div>
+            <div class="filter-group">
+              <label>Domain:</label>
+              <select id="filter-domain" onchange="applyFilters()">
+                <option value="ALL">All Domains</option>
+                <option value="PAYMENTS">Payments</option>
+                <option value="AUTH">Authentication</option>
+              </select>
+            </div>
+            <div class="search-box">
+              <input type="text" id="filter-search" placeholder="Search requirements..." onkeyup="applyFilters()">
+            </div>
+          </div>
+
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Requirement ID</th>
+                <th>Title & Expected Outcome</th>
+                <th>Domain / Service</th>
+                <th>Coverage Status</th>
+                <th>Failing Gates</th>
+                <th>Mapped Tests</th>
+                <th>Execution</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="requirements-table-body">
+              <tr><td colspan="8" class="loading">Loading coverage intelligence...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SCREEN C: Requirement Detail -->
+      <section id="screen-c" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2 id="detail-title">Requirement Detail Inspector</h2>
+            <p class="description" id="detail-subtitle">Inspect source evidence, applicable rules, and assertion verification depth.</p>
+          </div>
+          <button class="btn btn-secondary" onclick="switchTab('screen-b')">&larr; Back to Coverage</button>
+        </div>
+
+        <div class="detail-grid">
+          <div class="card">
+            <h3>Requirement Overview & Provenance</h3>
+            <table class="kv-table" id="kv-req-overview">
+              <tr><th>Requirement ID</th><td id="d-req-id">--</td></tr>
+              <tr><th>Classification</th><td id="d-req-type">--</td></tr>
+              <tr><th>Interface</th><td id="d-req-interface">--</td></tr>
+              <tr><th>Mandatory</th><td id="d-req-mandatory">--</td></tr>
+              <tr><th>Source Artifact</th><td id="d-req-artifact">--</td></tr>
+              <tr><th>Description</th><td id="d-req-desc">--</td></tr>
+            </table>
+
+            <h3 style="margin-top: 24px;">Acceptance Criteria</h3>
+            <ul class="bullet-list" id="d-req-criteria"></ul>
+          </div>
+
+          <div class="card">
+            <h3>Applicable Hard Gates & Policy Outcomes</h3>
+            <div id="d-req-gates" class="gate-outcomes-list"></div>
+
+            <h3 style="margin-top: 24px;">Mapped Automation Tests & Assertions</h3>
+            <div id="d-req-tests" class="mapped-tests-list"></div>
+
+            <div id="d-req-remediation-box" class="remediation-box hidden" style="margin-top: 24px;">
+              <h4>Recommended Test Scenario to Close Gap</h4>
+              <p id="d-remediation-title">--</p>
+              <ol id="d-remediation-steps"></ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN D: Regression Selection -->
+      <section id="screen-d" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2>Smart Regression Test Selection</h2>
+            <p class="description">Requirement-driven impact selection: maps changed code to affected obligations and selects targeted tests.</p>
+          </div>
+        </div>
+
+        <div class="selection-config-card card">
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label>Select Sample PR / Change Diff:</label>
+              <select id="diff-selector" onchange="loadSelectedDiff()">
+                <option value="pr-payment-retry-change.diff">PR-900: Realtime Payment Submission (Downstream Call Altered)</option>
+                <option value="pr-101-payment-route.diff">PR-101: 3DS Authentication Header & UI Button</option>
+                <option value="pr-104-auth-risk.diff">PR-104: Auth Filter Alteration & Dependency Bump (Risk Widening)</option>
+              </select>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="executeRegressionSelection()">Run Regression Selection</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="regression-warning-banner" class="alert-banner warning hidden">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <h4>Unmitigated Requirement Impact Detected</h4>
+            <div id="regression-warning-text"></div>
+          </div>
+        </div>
+
+        <div class="table-container" style="margin-top: 20px;">
+          <h3>Targeted Test Selection Decision Matrix</h3>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Priority</th>
+                <th>Confidence</th>
+                <th>Test Identifier</th>
+                <th>In Regression Suite</th>
+                <th>Affected Requirements</th>
+                <th>Selection Rationale</th>
+              </tr>
+            </thead>
+            <tbody id="regression-table-body">
+              <tr><td colspan="6" class="placeholder">Click 'Run Regression Selection' to evaluate impact.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- SCREEN A: Project Configuration -->
+      <section id="screen-a" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2>Project & Artifact Configuration</h2>
+            <p class="description">Manage ingested specification files, automation test suites, and test management connectors.</p>
+          </div>
+        </div>
+
+        <div class="config-grid">
+          <div class="card">
+            <h3>Discovered Source Artifacts</h3>
+            <div class="artifact-list" id="discovered-artifacts-list">
+              <div class="artifact-item">
+                <span class="icon">📄</span>
+                <div class="info">
+                  <strong>OpenAPI Specification:</strong> <code>payment-api.v1.yaml</code>
+                  <span class="badge badge-success">Ingested & Verified</span>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="icon">📝</span>
+                <div class="info">
+                  <strong>Feature Document:</strong> <code>payment-submission-feature.md</code>
+                  <span class="badge badge-success">Ingested & Verified</span>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="icon">🏛️</span>
+                <div class="info">
+                  <strong>Architecture Record (ADR):</strong> <code>ADR-004-idempotency-and-resilience.md</code>
+                  <span class="badge badge-success">Ingested & Verified</span>
+                </div>
+              </div>
+              <div class="artifact-item">
+                <span class="icon">✉️</span>
+                <div class="info">
+                  <strong>Message Specification:</strong> <code>swift-pacs008-payment.json</code>
+                  <span class="badge badge-success">Ingested & Verified</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Active Quality Gate Policy Rule Packs</h3>
+            <div class="gate-packs-list">
+              <div class="gate-pack-item">
+                <strong>common/security.yaml</strong> - Mandatory token validation & negative authorization
+              </div>
+              <div class="gate-pack-item">
+                <strong>common/api.yaml</strong> - OpenAPI schema conformity & error structures
+              </div>
+              <div class="gate-pack-item">
+                <strong>resilience/retry.yaml</strong> - Transient 503 retry with backoff & safe boundaries
+              </div>
+              <div class="gate-pack-item">
+                <strong>domains/payments.yaml</strong> - Idempotency vs Duplicate Detection & Amount Integrity
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREEN E: Findings and Report -->
+      <section id="screen-e" class="tab-pane">
+        <div class="pane-header">
+          <div>
+            <h2>Audit-Ready Quality Assurance Report</h2>
+            <p class="description">Exportable compliance and requirement traceability report for change approvals.</p>
+          </div>
+          <div>
+            <button class="btn btn-secondary" onclick="copyReport()">Copy Markdown</button>
+            <button class="btn btn-primary" onclick="downloadReport()">Download Report (.md)</button>
+          </div>
+        </div>
+
+        <div class="card report-viewer">
+          <pre id="report-content-pre">Loading report...</pre>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

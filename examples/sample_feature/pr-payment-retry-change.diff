@@ -1,0 +1,22 @@
+diff --git a/src/main/java/com/psp/payment/service/PaymentSubmissionService.java b/src/main/java/com/psp/payment/service/PaymentSubmissionService.java
+index a1b2c3d..e4f5a6b 100644
+--- a/src/main/java/com/psp/payment/service/PaymentSubmissionService.java
++++ b/src/main/java/com/psp/payment/service/PaymentSubmissionService.java
+@@ -34,12 +34,17 @@ public class PaymentSubmissionService {
+     @Autowired
+     private ClearingSchemeClient clearingSchemeClient;
+ 
++    // PAY-900: Route payments to updated clearing gateway
+     public PaymentResponse submitPayment(PaymentRequest request, String idempotencyKey) {
+         // Validate idempotency
+         if (idempotencyStore.has(idempotencyKey)) {
+             return idempotencyStore.get(idempotencyKey);
+         }
+ 
+-        PaymentResponse response = clearingSchemeClient.sendDirect(request);
++        // Developer modified downstream submission call, but omitted retry configuration!
++        PaymentResponse response = clearingSchemeClient.sendViaRealtimeGateway(request);
+         idempotencyStore.put(idempotencyKey, response);
+         return response;
+     }
+ }

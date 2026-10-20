@@ -1,0 +1,93 @@
+{
+  "meta": {
+    "framework": "selenium-java",
+    "commit": "cd3c4512fa396c7024d71101a36d7cf80c7c3ffe",
+    "repo_dir": "C:\\Users\\ashut\\Desktop\\Regression test selector\\.github\\skills\\regression-test-selector\\examples\\fixtures\\fake-automation-repo\\selenium",
+    "total_tests": 3,
+    "in_regression_suite": 2,
+    "in_smoke_suite": 1,
+    "tests_with_jira": 3,
+    "pct_jira": "100.0%",
+    "tests_with_endpoints_or_routes": 2,
+    "pct_endpoints_or_routes": "66.7%"
+  },
+  "tests": [
+    {
+      "id": "src/test/java/com/psp/tests/PaymentProcessingTest.java:13:PaymentProcessingTest.testPaymentOrderSubmission",
+      "file": "src/test/java/com/psp/tests/PaymentProcessingTest.java",
+      "line": 13,
+      "title": "PaymentProcessingTest.testPaymentOrderSubmission - [PAY-101] Process Credit Card Payment with 3DS",
+      "tags": [
+        "@payment",
+        "@regression"
+      ],
+      "jira_keys": [
+        "PAY-101"
+      ],
+      "routes_visited": [
+        "/checkout/payment",
+        "https://psp-staging.internal.example.com"
+      ],
+      "endpoints_called": [
+        "/api/v1/payments/process"
+      ],
+      "ui_labels": [
+        "btn-submit-order",
+        "card-number-input"
+      ],
+      "page_objects_used": [
+        "CheckoutPage"
+      ],
+      "in_regression_suite": true,
+      "in_smoke_suite": false
+    },
+    {
+      "id": "src/test/java/com/psp/tests/PaymentProcessingTest.java:23:PaymentProcessingTest.testCardDecline",
+      "file": "src/test/java/com/psp/tests/PaymentProcessingTest.java",
+      "line": 23,
+      "title": "PaymentProcessingTest.testCardDecline - [PAY-102] Verify Insufficient Funds Decline Message",
+      "tags": [
+        "@regression"
+      ],
+      "jira_keys": [
+        "PAY-101",
+        "PAY-102"
+      ],
+      "routes_visited": [
+        "/checkout/payment",
+        "https://psp-staging.internal.example.com"
+      ],
+      "endpoints_called": [
+        "/api/v1/payments/process"
+      ],
+      "ui_labels": [
+        "btn-submit-order",
+        "card-number-input"
+      ],
+      "page_objects_used": [
+        "CheckoutPage"
+      ],
+      "in_regression_suite": true,
+      "in_smoke_suite": false
+    },
+    {
+      "id": "src/test/java/com/psp/tests/SmokeSanityTest.java:11:SmokeSanityTest.testAuthSanity",
+      "file": "src/test/java/com/psp/tests/SmokeSanityTest.java",
+      "line": 11,
+      "title": "SmokeSanityTest.testAuthSanity - [AUTH-401] Sanity Check Authentication Endpoint",
+      "tags": [
+        "@auth",
+        "@smoke"
+      ],
+      "jira_keys": [
+        "AUTH-401"
+      ],
+      "routes_visited": [],
+      "endpoints_called": [],
+      "ui_labels": [],
+      "page_objects_used": [],
+      "in_regression_suite": false,
+      "in_smoke_suite": true
+    }
+  ]
+}

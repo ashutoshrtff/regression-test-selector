@@ -43,10 +43,28 @@ class CoverageIntelligenceEngine:
         execution_evidence = execution_evidence or {}
         assessments: List[RequirementCoverageAssessment] = []
 
+        # Build flexible lookup index for execution evidence
+        evidence_by_title: Dict[Any, Dict[str, Any]] = {}
+        for ev_key, ev_val in execution_evidence.items():
+            evidence_by_title[ev_key] = ev_val
+            parts = ev_key.split(":", 2)
+            if len(parts) >= 3:
+                evidence_by_title[parts[2].strip()] = ev_val
+                evidence_by_title[(parts[0].replace("\\", "/"), parts[2].strip())] = ev_val
+            else:
+                evidence_by_title[ev_key.strip()] = ev_val
+
         # Update test execution statuses if real evidence provided
         for test_id, test in available_tests.items():
+            ev = None
             if test_id in execution_evidence:
                 ev = execution_evidence[test_id]
+            elif (test.file_path, test.title) in evidence_by_title:
+                ev = evidence_by_title[(test.file_path, test.title)]
+            elif test.title in evidence_by_title:
+                ev = evidence_by_title[test.title]
+
+            if ev:
                 stat_str = ev.get("status", "TEST_NOT_EXECUTED")
                 try:
                     test.execution_status = ExecutionStatus(stat_str)
@@ -77,6 +95,9 @@ class CoverageIntelligenceEngine:
                 else:
                     assessment_notes.append(f"[PASS] {reason}")
 
+            if not applicable_rules:
+                assessment_notes.append("[INFO] No organizational quality gates apply to this requirement.")
+
             # 3. Determine uncovered expected outcomes
             covered_outcome_ids = {m.outcome_id for m in mapped_tests if m.asserts_outcome}
             uncovered_outcomes = [
@@ -88,6 +109,13 @@ class CoverageIntelligenceEngine:
             if req.ambiguity_notes:
                 coverage_status = CoverageStatus.AMBIGUOUS
                 assessment_notes.extend([f"[AMBIGUITY] {n}" for n in req.ambiguity_notes])
+            elif not req.mandatory and not req.expected_outcomes:
+                coverage_status = CoverageStatus.NOT_APPLICABLE
+                assessment_notes.append("[NOT_APPLICABLE] Requirement is non-mandatory and defines no expected outcomes.")
+            elif len(req.expected_outcomes) == 0:
+                # Critical guardrail: A requirement with zero expected outcomes cannot be marked COVERED
+                coverage_status = CoverageStatus.AMBIGUOUS
+                assessment_notes.append("[AMBIGUITY] Requirement specifies zero expected outcomes; testable behavior missing.")
             elif not mapped_tests:
                 coverage_status = CoverageStatus.MISSING_COVERAGE
             elif len(uncovered_outcomes) == 0 and len(failing_gates) == 0:
@@ -107,9 +135,9 @@ class CoverageIntelligenceEngine:
             else:
                 exec_status = ExecutionStatus.TEST_NOT_EXECUTED
 
-            # 6. Formulate suggested test scenario if coverage is missing or partially covered
+            # 6. Formulate suggested test scenario if coverage is missing, partial, or ambiguous
             suggested_scenario = None
-            if coverage_status in (CoverageStatus.MISSING_COVERAGE, CoverageStatus.PARTIALLY_COVERED):
+            if coverage_status in (CoverageStatus.MISSING_COVERAGE, CoverageStatus.PARTIALLY_COVERED, CoverageStatus.AMBIGUOUS):
                 suggested_scenario = self._generate_suggested_scenario(req, uncovered_outcomes)
 
             assessments.append(RequirementCoverageAssessment(

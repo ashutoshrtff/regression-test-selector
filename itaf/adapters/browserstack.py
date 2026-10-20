@@ -59,8 +59,9 @@ class BrowserStackAdapter(BaseTestManagementAdapter):
                             "source": "LIVE_BROWSERSTACK_API"
                         }
                     return results
-            except Exception:
-                pass
+            except Exception as e:
+                import sys
+                sys.stderr.write(f"[BrowserStackAdapter WARNING] Live API call failed ({e}). Reverting to fixture fallback.\n")
 
         if self.fixture_evidence_path and os.path.exists(self.fixture_evidence_path):
             with open(self.fixture_evidence_path, "r", encoding="utf-8") as f:

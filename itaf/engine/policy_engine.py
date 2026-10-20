@@ -16,6 +16,7 @@ from itaf.core.models import (
     PolicyRule,
     RuleSeverity,
     Requirement,
+    RequirementType,
     DiscoveredTestCase,
     RequirementTestMapping,
     CoverageStatus
@@ -145,13 +146,44 @@ class PolicyEngine:
         req_domain = requirement.domain.upper()
         req_interface = requirement.interface.upper()
         req_method = req_interface.split()[0] if " " in req_interface else "POST"
+        explicit_rule_ids = set(requirement.applicable_rule_ids)
 
         for rule in self.rules.values():
+            # If the requirement explicitly specifies applicable rules, honor that explicit contract
+            if explicit_rule_ids:
+                if rule.rule_id in explicit_rule_ids:
+                    applicable.append(rule)
+                continue
+
+            # Otherwise, evaluate scope based on requirement type, domain, and interface method
             applies = rule.applies_to
             domain_match = not applies.get("domains") or any(d.upper() == req_domain for d in applies["domains"])
             method_match = not applies.get("methods") or any(m.upper() == req_method for m in applies["methods"])
 
-            if domain_match and method_match:
+            if not (domain_match and method_match):
+                continue
+
+            category = rule.category.upper()
+            rtype = requirement.req_type
+            type_match = False
+            if category == "SECURITY" and rtype == RequirementType.SECURITY:
+                type_match = True
+            elif category == "PAYMENT_CORRECTNESS":
+                if rule.rule_id == "GATE-PAY-001" and rtype == RequirementType.IDEMPOTENCY:
+                    type_match = True
+                elif rule.rule_id == "GATE-PAY-002" and rtype == RequirementType.DUPLICATE_DETECTION:
+                    type_match = True
+                elif rule.rule_id == "GATE-PAY-003" and rtype in (RequirementType.DATA_INTEGRITY, RequirementType.NEGATIVE):
+                    type_match = True
+            elif category == "RESILIENCE":
+                if rule.rule_id.startswith("GATE-RET") and rtype == RequirementType.RESILIENCE_RETRY:
+                    type_match = True
+                elif rule.rule_id == "GATE-CB-001" and rtype == RequirementType.CIRCUIT_BREAKER:
+                    type_match = True
+            elif category == "API_STANDARDS" and rtype == RequirementType.API_CONTRACT:
+                type_match = True
+
+            if type_match:
                 applicable.append(rule)
 
         return applicable
@@ -176,16 +208,24 @@ class PolicyEngine:
 
         # Inspect if any mapped test genuinely asserts the required outcomes
         asserting_tests = [m for m in mapped_tests if m.asserts_outcome]
+        if not asserting_tests:
+            return (
+                False,
+                f"Gate '{rule.name}' ({rule.rule_id}) failed: Discovered tests merely visit interface but do not deeply assert expected outcome.",
+                rule.severity
+            )
 
-        # Specific gate checks
+        # Gate-specific validation based on evidence
         if rule.rule_id == "GATE-PAY-001":  # Idempotency
-            # Must assert idempotency header and replay safety
             has_idempotency_assertion = False
-            for m in mapped_tests:
+            for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
                     for a in test.assertions:
-                        if "idempotency" in a.target.lower() or "idempotency" in a.raw_statement.lower():
+                        if a.assertion_type == "IDEMPOTENCY_FLAG":
+                            has_idempotency_assertion = True
+                            break
+                        if a.assertion_type == "HEADER" and "idempotency" in a.target.lower():
                             has_idempotency_assertion = True
                             break
             if not has_idempotency_assertion:
@@ -196,30 +236,44 @@ class PolicyEngine:
                 )
 
         elif rule.rule_id == "GATE-PAY-002":  # Business Duplicate Detection
-            # Must assert HTTP 409 or DUPLICATE_PAYMENT code
             has_dup_assertion = False
-            for m in mapped_tests:
+            for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
                     for a in test.assertions:
-                        if a.target == "409" or "duplicate" in a.target.lower() or "conflict" in a.raw_statement.lower():
+                        if a.target == "409" or a.target == "DUPLICATE_PAYMENT":
                             has_dup_assertion = True
                             break
             if not has_dup_assertion:
                 return (
                     False,
-                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts HTTP 409 Conflict rejection when separate submissions contain duplicate business fields.",
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts HTTP 409 Conflict rejection or DUPLICATE_PAYMENT code when separate submissions contain duplicate business fields.",
+                    rule.severity
+                )
+
+        elif rule.rule_id == "GATE-PAY-003":  # Payment Amount and Currency Integrity
+            has_integrity_assertion = False
+            for m in asserting_tests:
+                test = all_tests.get(m.test_id)
+                if test:
+                    for a in test.assertions:
+                        if a.target == "400":
+                            has_integrity_assertion = True
+                            break
+            if not has_integrity_assertion:
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts rejection (HTTP 400 Bad Request) on negative, zero, or malformed payment amounts.",
                     rule.severity
                 )
 
         elif rule.rule_id == "GATE-RET-001":  # Transient Retry Backoff
-            # Must assert retry count, 503 recovery, or backoff
             has_retry_assertion = False
-            for m in mapped_tests:
+            for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
                     for a in test.assertions:
-                        if "retry" in a.target.lower() or a.assertion_type == "RETRY_COUNT" or "503" in a.target:
+                        if a.assertion_type == "RETRY_COUNT":
                             has_retry_assertion = True
                             break
             if not has_retry_assertion:
@@ -229,13 +283,27 @@ class PolicyEngine:
                     rule.severity
                 )
 
+        elif rule.rule_id == "GATE-RET-002":  # Idempotent Safe-Retry Boundary
+            has_safe_retry = False
+            for m in asserting_tests:
+                test = all_tests.get(m.test_id)
+                if test and ("safe" in test.title.lower() or "idempotent" in test.title.lower() or any(a.assertion_type == "RETRY_COUNT" for a in test.assertions)):
+                    has_safe_retry = True
+                    break
+            if not has_safe_retry:
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No test asserts that retries preserve idempotent execution boundary without ledger over-debits.",
+                    rule.severity
+                )
+
         elif rule.rule_id == "GATE-SEC-001":  # Authentication Token
             has_auth_assertion = False
-            for m in mapped_tests:
+            for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
                     for a in test.assertions:
-                        if a.target in ("401", "403") or "auth" in a.target.lower() or "unauthorized" in a.raw_statement.lower():
+                        if a.target == "401":
                             has_auth_assertion = True
                             break
             if not has_auth_assertion:
@@ -245,12 +313,61 @@ class PolicyEngine:
                     rule.severity
                 )
 
-        if not asserting_tests:
-            return (
-                False,
-                f"Gate '{rule.name}' ({rule.rule_id}) failed: Discovered tests merely visit interface but do not deeply assert expected outcome.",
-                rule.severity
+        elif rule.rule_id == "GATE-SEC-002":  # RBAC Authorization
+            has_rbac_assertion = False
+            for m in asserting_tests:
+                test = all_tests.get(m.test_id)
+                if test:
+                    for a in test.assertions:
+                        if a.target == "403":
+                            has_rbac_assertion = True
+                            break
+            if not has_rbac_assertion:
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: Missing test asserting HTTP 403 Forbidden rejection when role lacks disbursement rights.",
+                    rule.severity
+                )
+
+        elif rule.rule_id == "GATE-API-001":  # API Contract Conformity
+            has_200 = any(a.target in ("200", "201") for m in asserting_tests for a in all_tests.get(m.test_id, DiscoveredTestCase("", "", "", 0, "")).assertions)
+            has_400 = any(a.target == "400" for m in asserting_tests for a in all_tests.get(m.test_id, DiscoveredTestCase("", "", "", 0, "")).assertions)
+            if not (has_200 and has_400):
+                missing_parts = []
+                if not has_200: missing_parts.append("positive HTTP 200/201")
+                if not has_400: missing_parts.append("negative HTTP 400 Bad Request")
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: Missing contract validation for: {', '.join(missing_parts)}.",
+                    rule.severity
+                )
+
+        elif rule.rule_id == "GATE-API-002":  # Standardized Error Structure
+            has_err_body = any(
+                a.assertion_type == "ERROR_CODE"
+                for m in asserting_tests
+                for a in all_tests.get(m.test_id, DiscoveredTestCase("", "", "", 0, "")).assertions
             )
+            if not has_err_body:
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No test asserts standardized problem details or error code in error response body.",
+                    rule.severity
+                )
+
+        elif rule.rule_id == "GATE-CB-001":  # Circuit Breaker
+            has_cb = any(
+                "circuit" in test.title.lower() or "breaker" in test.title.lower()
+                for m in asserting_tests
+                for test in [all_tests.get(m.test_id)]
+                if test
+            )
+            if not has_cb:
+                return (
+                    False,
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts circuit breaker trip/isolation under consecutive downstream failures.",
+                    rule.severity
+                )
 
         return (
             True,

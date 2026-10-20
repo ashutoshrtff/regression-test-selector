@@ -31,6 +31,9 @@ def _parse_yaml_or_json(content: str) -> Dict[str, Any]:
 
     # Try json first
     content_trimmed = content.strip()
+    if not content_trimmed:
+        raise ValueError("OpenAPI specification file is empty.")
+
     if content_trimmed.startswith("{"):
         try:
             return json.loads(content)
@@ -54,6 +57,8 @@ def _parse_yaml_or_json(content: str) -> Dict[str, Any]:
             data["openapi"] = stripped.split(":", 1)[1].strip().strip('"\'')
         elif line.startswith("  title:") or stripped.startswith("title:"):
             data.setdefault("info", {})["title"] = stripped.split(":", 1)[1].strip().strip('"\'')
+        elif line.startswith("security:") or stripped.startswith("security:"):
+            data.setdefault("security", [{"bearerAuth": []}])
 
         # Paths
         path_match = re.match(r'^  (/[^:]+):\s*$', line)
@@ -78,6 +83,13 @@ def _parse_yaml_or_json(content: str) -> Dict[str, Any]:
                 op["summary"] = stripped.split(":", 1)[1].strip().strip('"\'')
             elif stripped.startswith("description:"):
                 op["description"] = stripped.split(":", 1)[1].strip().strip('"\'')
+            elif stripped.startswith("- name:"):
+                p_name = stripped.split(":", 1)[1].strip().strip('"\'')
+                op.setdefault("parameters", []).append({"name": p_name, "in": "header" if "idempotency" in p_name.lower() else "query"})
+            elif stripped.startswith("in:") and op.get("parameters"):
+                op["parameters"][-1]["in"] = stripped.split(":", 1)[1].strip().strip('"\'')
+            elif "security:" in stripped or "bearerAuth" in stripped:
+                op.setdefault("security", [{"bearerAuth": []}])
 
             # Status codes under responses:
             resp_match = re.match(r"^\s+['\"]?([1-5][0-9]{2})['\"]?:\s*$", line)
