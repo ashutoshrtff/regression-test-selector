@@ -94,22 +94,23 @@ class CrossRepoMapper:
                 matching_assertions = []
                 if outcome.outcome_type == RequirementType.IDEMPOTENCY:
                     for a in test.assertions:
+                        # An Idempotency-Key header assertion alone does NOT demonstrate safe replay
                         if a.assertion_type == "IDEMPOTENCY_FLAG" or (
-                            "idempotency" in a.target.lower() and a.is_deep_assertion
+                            "idempotency" in a.target.lower() and a.is_deep_assertion and a.assertion_type != "HEADER"
                         ):
                             matching_assertions.append(a)
                             asserts_outcome = True
                 elif outcome.outcome_type == RequirementType.DUPLICATE_DETECTION:
+                    is_dup_context = any(kw in (test.title + " " + test.file_path).lower() for kw in ["duplicate", "dedup", "velocity", "re-submit", "resubmit"])
                     for a in test.assertions:
-                        if a.target == "409" or a.target == "DUPLICATE_PAYMENT":
+                        # HTTP 409 alone does not prove business duplicate detection without duplicate submission context or DUPLICATE_PAYMENT code
+                        if a.target == "DUPLICATE_PAYMENT" or (a.target == "409" and is_dup_context):
                             matching_assertions.append(a)
                             asserts_outcome = True
                 elif outcome.outcome_type == RequirementType.RESILIENCE_RETRY:
                     for a in test.assertions:
-                        if a.assertion_type == "RETRY_COUNT" or (
-                            outcome.expected_status_code and str(outcome.expected_status_code) == a.target
-                            and any("retry" in (t.title.lower() + t.file_path.lower()) for t in [test])
-                        ):
+                        # HTTP 503 alone does not prove retry behavior; requires explicit RETRY_COUNT or recovery assertion
+                        if a.assertion_type == "RETRY_COUNT":
                             matching_assertions.append(a)
                             asserts_outcome = True
                 elif outcome.outcome_type == RequirementType.SECURITY:

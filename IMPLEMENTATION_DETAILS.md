@@ -210,15 +210,15 @@ Regression test selector/
 │   ├── requirement.schema.json
 │   └── test-case.schema.json
 ├── tests/                                  # ITAF Core Unit & Integration Test Suite
-│   ├── run_all_tests.py                    # Unified test runner (34 tests, stdlib unittest)
-│   └── test_itaf_core.py                   # 13 core ITAF tests (parsers, gates, mapping, cache, security)
+│   ├── run_all_tests.py                    # Unified test runner (45 tests, stdlib unittest)
+│   └── test_itaf_core.py                   # 24 core ITAF tests (parsers, gates, mapping, false-assurance, cache, security)
 ├── .gitignore
 ├── itaf_cli.py                             # Root CLI entrypoint (8 lines)
 ├── README.md                               # Project README
 └── IMPLEMENTATION_DETAILS.md               # ← This file
 ```
 
-**Project Statistics**: 83 source files, 34 automated tests (100% passing in <1s), zero pip dependencies (100% Python 3.9+ standard library).
+**Project Statistics**: 83 source files, 45 automated tests (100% passing in ~2s), zero pip dependencies (100% Python 3.9+ standard library).
 
 ---
 
@@ -226,9 +226,9 @@ Regression test selector/
 
 ### File: `itaf/core/models.py` (211 lines)
 
-Contains **7 enumerations** and **14 dataclasses** that form the canonical, technology-neutral data model for the entire framework. All models use Python's `dataclasses` module and are fully serializable.
+Contains **6 enumerations** and **9 dataclasses** that form the canonical, technology-neutral data model for the entire framework. All models use Python's `dataclasses` module and are fully serializable.
 
-#### Enumerations
+#### Enumerations (6)
 
 | Enum | Values | Purpose |
 |:---|:---|:---|
@@ -239,7 +239,7 @@ Contains **7 enumerations** and **14 dataclasses** that form the canonical, tech
 | `CoverageStatus` | `COVERED`, `PARTIALLY_COVERED`, `MISSING_COVERAGE`, `BLOCKED`, `AMBIGUOUS`, `NOT_APPLICABLE` | Coverage state of a requirement |
 | `ExecutionStatus` | `EXECUTION_PASSED`, `EXECUTION_FAILED`, `TEST_NOT_EXECUTED`, `EVIDENCE_MISSING` | Last execution result |
 
-#### Dataclasses
+#### Dataclasses (9)
 
 | Dataclass | Key Fields | Purpose |
 |:---|:---|:---|
@@ -714,7 +714,7 @@ The `regression-test-selector` skill is a reusable GitHub Copilot Agent Skill co
 
 ### Tests (`tests/`)
 
-The framework is verified by a **34-test automated test suite** executed with standard library `unittest` via `python tests/run_all_tests.py`:
+The framework is verified by a **45-test automated test suite** executed with standard library `unittest` via `python tests/run_all_tests.py`:
 
 - **21 RTS Skill Tests** (`.github/skills/regression-test-selector/tests/`):
   - Change fingerprint extraction accuracy (`test_fingerprints.py`)
@@ -722,14 +722,26 @@ The framework is verified by a **34-test automated test suite** executed with st
   - Evidence tier ranking and strict validation guardrails (`test_ranking.py`)
   - Backtesting recall and precision calculations (`test_backtest.py`)
   - Remote and local repo fetching and host detection (`test_fetch_repo.py`)
-- **13 ITAF Core Tests** (`tests/test_itaf_core.py`):
-  - Specification parsing: OpenAPI parameter/security extraction, Feature Markdown parsing with ambiguity notes, ISO 20022 message parsing
-  - Policy Engine: Rule applicability isolation and structured assertion checks across all 10 gates; anti-false-positive checks against keyword-only matches
-  - Cross-Repo Mapper: Case-insensitive interface normalization, regex Jira key extraction, discrete outcome mapping, strict negative outcome matching (e.g. 401 != 403)
-  - Coverage Intelligence: Multi-index execution lookup `(file_path, title)`, empty outcomes guardrail (`AMBIGUOUS` never `COVERED`), zero-gate transparency notes
-  - Regression Selector: Unmitigated coverage gaps flagged for ambiguous/blocked specs, conservative domain fallback
-  - Incremental Cache: SHA-256 artifact hashing and lifecycle
-  - Web Server Security: Static path traversal protection via `os.path.commonpath`, diff input sanitization via `os.path.basename`
+- **24 ITAF Core Tests** (`tests/test_itaf_core.py`, 1030 lines):
+  - **Specification Parsing**: OpenAPI parameter/security extraction, Feature Markdown parsing with ambiguity notes, ISO 20022 message parsing.
+  - **Policy Engine**: Rule applicability isolation and structured assertion checks across all 10 gates; anti-false-positive checks against keyword-only matches.
+  - **Cross-Repo Mapper**: Case-insensitive interface normalization, regex Jira key extraction, discrete outcome mapping, strict negative outcome matching (e.g. 401 != 403).
+  - **Coverage Intelligence**: Multi-index execution lookup `(file_path, title)`, empty outcomes guardrail (`AMBIGUOUS` never `COVERED`), zero-gate transparency notes.
+  - **False Assurance Prevention Guardrails** (`TestFalseAssuranceGuards`):
+    - An idempotency header assertion alone does NOT prove safe replay (`test_idempotency_header_alone_does_not_prove_safe_replay`).
+    - An HTTP 409 assertion alone does NOT prove business duplicate detection (`test_http_409_alone_does_not_prove_duplicate_detection`).
+    - An HTTP 503 assertion alone does NOT prove successful retry behavior (`test_http_503_alone_does_not_prove_successful_retry`).
+    - A test containing an unrelated assertion cannot satisfy a mandatory outcome (`test_unrelated_assertion_cannot_satisfy_mandatory_outcome`).
+    - A Jira-key or endpoint match without relevant outcome evidence does not establish confirmed coverage (`test_jira_and_endpoint_match_without_outcome_evidence_not_confirmed`).
+    - Coverage status and execution status are evaluated and reported independently (`test_coverage_status_and_execution_status_are_independent`).
+  - **Regression Selection Validation** (`TestRegressionSelectionValidation`):
+    - Shared DTO field modifications trigger affected requirements (`test_shared_dto_change_triggers_affected_requirements`).
+    - Indirect dependency and build configuration changes (`pom.xml`, migrations) trigger risk widening and smoke tests (`test_indirect_dependency_and_configuration_changes`).
+    - Unmapped endpoints or unknown files trigger conservative domain fallback with audit warnings (`test_unknown_files_and_missing_specifications_widen_conservatively`).
+    - Stale test index resilience safely excludes deleted tests and flags unmitigated coverage gaps (`test_stale_test_index_resilience`).
+    - ITAF engine and standalone RTS skill produce compatible decisions for equivalent change inputs (`test_itaf_and_rts_skill_compatibility`).
+  - **Incremental Cache**: SHA-256 artifact hashing and lifecycle invalidation.
+  - **Web Server Security**: Static path traversal protection via `os.path.commonpath`, diff input sanitization via `os.path.basename`.
 
 ---
 
@@ -819,10 +831,10 @@ Used by the RTS skill's `matcher.py` and by the ITAF engine's `CrossRepoMapper`:
 | Tier | Name | Example | Priority |
 |:---|:---|:---|:---|
 | **Tier 1** | Direct Reference | Endpoint `POST /api/v1/payments/process`, Route `/checkout/payment`, UI selector `Pay Now`, Error code `ERR_CARD_EXPIRED`, DTO field | `MUST_RUN` (High Confidence) |
-| **Tier 2** | Jira Key Match | Test title/tags/comments contain PR's Jira issue key | `MUST_RUN` (High Confidence) |
-| **Tier 3** | Flow Match | Agent behavioral reasoning matches CR summary to test flows | `SHOULD_RUN` (Medium Confidence) |
+| **Tier 2** | Jira Key Match | Test title/tags/comments contain PR's Jira issue key | `MUST_RUN` (High Confidence if joint; Medium if alone) |
+| **Tier 3** | Flow Match | Behavioral reasoning matches CR summary to test flows | `SHOULD_RUN` (Medium Confidence) |
 | **Tier 4** | Page Object Path | Inherited through 1-level Page Object indirection (e.g., `PaymentPage` → `testPayment`) | `SHOULD_RUN` (Medium Confidence) |
-| **Tier 5** | Semantic Domain Match | Broad domain keywords (`auth`, `reporting`) | `SHOULD_RUN` (Low Confidence) |
+| **Tier 5** | Semantic Domain Match | Broad domain keywords (`payment`, `checkout`, `refund`). Advisory fallback; outcome assertions unverified. | `SHOULD_RUN` (Low Confidence) |
 
 ---
 
@@ -843,7 +855,7 @@ Used by the RTS skill's `matcher.py` and by the ITAF engine's `CrossRepoMapper`:
 
 ## 20. Benchmark Results
 
-The RTS selection pipeline was validated across 5 real-world pull request scenarios against the payments test automation suite (25 total candidate test evaluations across 5 PR diffs):
+The RTS selection pipeline was validated across 5 synthetic pull request fixture scenarios (`dev-diffs/pr-101.diff` to `pr-105.diff`) against the mock payments automation test suite (`fake-automation-repo/`, 25 total candidate test evaluations across 5 PR diffs):
 
 | Metric | Without RTS (Full Regression Baseline) | With RTS Targeted Selection | Improvement / Impact |
 |:---|:---:|:---:|:---|
@@ -858,7 +870,7 @@ The RTS selection pipeline was validated across 5 real-world pull request scenar
 | **Coverage Gaps Flagged** | 0 (blind) | **3 Gaps Flagged** | **Proactive test scenario generation** |
 
 > [!NOTE]
-> **Dataset Disclosure**: These benchmark results reflect backtesting simulations executed via `scripts/backtest.py` across synthetic PR diffs and known defects fixture dataset (`known-defects.csv`, `dev-diffs/pr-*.diff`, `fake-automation-repo/`). Zero-denominator safety is enforced in all statistical calculations.
+> **Dataset Disclosure**: These benchmark results reflect backtesting simulations executed via `scripts/backtest.py` across synthetic PR diffs and known defects fixture dataset (`known-defects.csv`, `dev-diffs/pr-*.diff`, `fake-automation-repo/`). Zero-denominator safety is enforced in all statistical calculations. These results characterize backtesting algorithm performance on synthetic fixtures rather than multi-tenant production CI execution telemetry.
 
 ---
 
@@ -877,26 +889,26 @@ The RTS selection pipeline was validated across 5 real-world pull request scenar
 
 | Module Path | Class/Function | Lines | Purpose |
 |:---|:---|:---:|:---|
-| `itaf/core/models.py` | 7 Enums + 14 Dataclasses | 211 | Canonical data models |
+| `itaf/core/models.py` | 6 Enums + 9 Dataclasses | 211 | Canonical data models |
 | `itaf/core/cache.py` | `ArtifactCache`, `GLOBAL_ARTIFACT_CACHE` | 71 | SHA-256 artifact caching |
 | `itaf/core/schemas.py` | `load_schema()`, `validate_dict()` | 79 | Schema loading & validation |
 | `itaf/parsers/openapi_parser.py` | `OpenAPIParser` | 339 | OpenAPI 3.0/Swagger parser |
 | `itaf/parsers/feature_parser.py` | `FeatureParser` | 230 | Feature/story document parser |
 | `itaf/parsers/message_parser.py` | `MessageFormatParser` | 90 | ISO 20022 message parser |
 | `itaf/engine/policy_engine.py` | `PolicyEngine` | 376 | Quality gate loader & evaluator |
-| `itaf/engine/test_discovery.py` | `TestDiscoveryEngine`, `inspect_assertions_in_body()` | 240 | Test discovery & assertion inspection |
+| `itaf/engine/test_discovery.py` | `TestDiscoveryEngine`, `inspect_assertions_in_body()` | 240 | Test discovery & lexical assertion inspection |
 | `itaf/engine/cross_repo_mapper.py` | `CrossRepoMapper` | 180 | Requirement→test mapping |
 | `itaf/engine/coverage_intelligence.py` | `CoverageIntelligenceEngine` | 201 | Coverage assessment engine |
 | `itaf/engine/regression_selector.py` | `RegressionSelector` | 189 | Change-driven test selection |
 | `itaf/adapters/base.py` | `BaseTestManagementAdapter` | 47 | Abstract adapter interface |
-| `itaf/adapters/repo_only.py` | `RepoOnlyAdapter` | 40 | Local git repo adapter |
+| `itaf/adapters/repo_only.py` | `RepoOnlyAdapter` | 40 | Local git repository adapter |
 | `itaf/adapters/xray.py` | `XrayAdapter` | 83 | Jira Xray REST adapter |
 | `itaf/adapters/browserstack.py` | `BrowserStackAdapter` | 82 | BrowserStack REST adapter |
 | `itaf/reports/generator.py` | `generate_markdown_report()` | 133 | Markdown audit report generator |
 | `itaf/ui/server.py` | `ITAFRequestHandler`, `run_itaf_analysis()`, `start_server()` | 296 | Hardened web server & orchestrator |
 | `itaf/cli.py` | `cmd_assess`, `cmd_select`, `cmd_gates`, `cmd_report`, `cmd_serve`, `main()` | 225 | Unified CLI interface |
-| `tests/run_all_tests.py` | Unified test runner | 32 | Runs all 34 core & skill tests |
-| `tests/test_itaf_core.py` | `TestParsers`, `TestPolicyEngine`, `TestCrossRepoMapper`, `TestCoverageIntelligenceEdgeCases`, `TestRegressionSelector`, `TestIncrementalCache`, `TestWebServerSecurity` | 410 | Core ITAF unit & integration tests |
+| `tests/run_all_tests.py` | Unified test runner | 32 | Runs all 45 core & skill tests |
+| `tests/test_itaf_core.py` | `TestParsers`, `TestPolicyEngine`, `TestCrossRepoMapper`, `TestCoverageIntelligenceEdgeCases`, `TestFalseAssuranceGuards`, `TestRegressionSelectionValidation`, `TestRegressionSelector`, `TestIncrementalCache`, `TestWebServerSecurity` | 1030 | Core ITAF unit & integration tests (24 tests) |
 
 ---
 
@@ -932,7 +944,7 @@ The RTS selection pipeline was validated across 5 real-world pull request scenar
 | 2 | `itaf/cli.py` | 225 | Unified CLI with 5 subcommands |
 | 3 | `itaf/core/__init__.py` | 48 | Core package exports |
 | 4 | `itaf/core/cache.py` | 71 | Artifact SHA-256 caching |
-| 5 | `itaf/core/models.py` | 211 | Data models (7 enums + 14 dataclasses) |
+| 5 | `itaf/core/models.py` | 211 | Data models (6 enums + 9 dataclasses) |
 | 6 | `itaf/core/schemas.py` | 79 | JSON Schema validation |
 | 7 | `itaf/parsers/__init__.py` | 9 | Parsers package exports |
 | 8 | `itaf/parsers/openapi_parser.py` | 339 | OpenAPI 3.0/Swagger parser |
@@ -954,7 +966,7 @@ The RTS selection pipeline was validated across 5 real-world pull request scenar
 | 24 | `itaf/ui/__init__.py` | 0 | UI package init |
 | 25 | `itaf/ui/server.py` | 296 | Web server + orchestration |
 | 26 | `tests/run_all_tests.py` | 32 | Unified test runner |
-| 27 | `tests/test_itaf_core.py` | 410 | Core ITAF unit & integration tests |
+| 27 | `tests/test_itaf_core.py` | 1030 | Core ITAF unit & integration tests |
 | 28 | `.github/skills/regression-test-selector/scripts/backtest.py` | 301 | RTS backtesting script |
 | 29 | `.github/skills/regression-test-selector/scripts/build_test_index.py` | 572 | RTS test indexing script |
 | 30 | `.github/skills/regression-test-selector/scripts/extract_change_fingerprints.py` | 421 | RTS diff fingerprinting script |
@@ -1007,7 +1019,8 @@ The RTS selection pipeline was validated across 5 real-world pull request scenar
 
 | Date | Change |
 |:---|:---|
-| 2026-10-20 | **Comprehensive Audit, Hardening & Validation Complete (34/34 Tests Passing)**:<br>• **Cross-Repo Mapping**: Fixed case-normalization bug (`req_interface.upper()` → lowercase endpoints), replaced hardcoded Jira keys with regex `[A-Z]{2,10}-\d+`, mapped all discrete expected outcomes (removed premature loop break), and enforced strict negative outcome matching (401 != 403; negative amount != missing currency).<br>• **Policy Engine**: Decoupled rule applicability from gate compliance; implemented structured assertion verification for all 10 gates; eliminated false-positive keyword matching (`auth`, `conflict`).<br>• **Coverage Intelligence**: Added multi-index execution lookup `(file_path, title)` alongside raw IDs to eliminate fragile line-number coupling; added empty outcomes guardrail (`len(expected_outcomes) == 0` is `AMBIGUOUS`, never `COVERED`); added explicit notes when 0 quality gates apply.<br>• **Regression Selector**: Matched affected requirements through mapped tests, routes, and suggested interfaces; flagged unmitigated gaps for `AMBIGUOUS` and `BLOCKED` requirements; added conservative domain fallback when technical impact cannot be resolved.<br>• **Specification Parsers**: Added parameter (`Idempotency-Key`) and security scheme extraction to built-in YAML parser; rejected empty specs; added generic Markdown user story section extraction with ambiguity notes.<br>• **Incremental Cache**: Created `itaf/core/cache.py` with thread-safe SHA-256 artifact hashing cache to optimize repeated evaluations and UI responsiveness.<br>• **Web Server Security**: Fixed static path traversal vulnerability via `os.path.commonpath`; sanitized diff filenames via `os.path.basename`; enforced 2MB request body limit; injected security headers (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`); default bound to `127.0.0.1`.<br>• **Adapters & Fixtures**: Replaced silent error swallowing in Xray and BrowserStack adapters with stderr diagnostic logging; labeled mock execution evidence explicitly as `FIXTURE_MOCK`.<br>• **Benchmark & Backtesting**: Added full confusion matrix metrics (TP=4, FP=8, FN=0, TN=13), Precision=33.3%, Recall=100.0%, zero-denominator safety, and synthetic fixture dataset disclosures.<br>• **Verification**: Created `tests/test_itaf_core.py` (13 tests) and unified runner `tests/run_all_tests.py` (34/34 tests passing in ~0.7s). |
+| 2026-10-20 | **Focused Correctness Review & Final Validation Complete (45/45 Tests Passing)**:<br>• **False Assurance Prevention**: Added rigorous guardrails preventing `HEADER` assertions alone from satisfying idempotency safe replay, generic `409` from satisfying business duplicate detection, and `503` alone from satisfying retry behavior. Enforced independent reporting for coverage status vs. execution status.<br>• **Model & Documentation Reconciliation**: Reconciled model counts to 6 enums and 9 dataclasses in `itaf/core/models.py`; clarified lexical regex pattern inspection over test source code (avoiding compiler AST dependencies); explicitly designated benchmark results as synthetic fixture backtesting.<br>• **Regression Selection Hardening**: Added shared DTO matching to `RegressionSelector`; validated risk widening across build configuration changes (`pom.xml`, migrations); added conservative domain fallback and stale test index tolerance.<br>• **Validation**: Expanded test suite to 45 automated tests (21 RTS skill tests + 24 ITAF core tests in `tests/test_itaf_core.py`), all passing standard-library-only execution in ~2s. |
+| 2026-10-20 | Implementation Audit & Remediation: Decoupled rule applicability from gate compliance; fixed case-insensitive interface matching and Jira key extraction in `cross_repo_mapper.py`; removed fragile line numbers in execution evidence indexing; resolved static file directory traversal and sanitized diff file inputs in `server.py`; implemented conservative regression fallback and unmitigated gap reporting for ambiguous/missing specifications; added comprehensive core tests and unified runner. |
 | 2026-10-20 | Initial `IMPLEMENTATION_DETAILS.md` created with full project documentation covering architecture, all modules, data models, engines, parsers, adapters, UI, CLI, gates, schemas, examples, benchmarks, APIs, and file inventory. |
 
 ---

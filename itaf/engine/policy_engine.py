@@ -221,17 +221,19 @@ class PolicyEngine:
             for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
+                    # Safe replay requires verifying cached response or idempotency flag.
+                    # An Idempotency-Key header assertion alone does NOT prove safe replay.
                     for a in test.assertions:
                         if a.assertion_type == "IDEMPOTENCY_FLAG":
                             has_idempotency_assertion = True
                             break
-                        if a.assertion_type == "HEADER" and "idempotency" in a.target.lower():
+                        if "idempotency" in a.target.lower() and a.assertion_type != "HEADER" and a.is_deep_assertion:
                             has_idempotency_assertion = True
                             break
             if not has_idempotency_assertion:
                 return (
                     False,
-                    f"Gate '{rule.name}' ({rule.rule_id}) failed: Mapped tests do not assert that repeating requests with the same Idempotency-Key returns cached response without duplicate side-effects.",
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: Mapped tests do not assert that repeating requests with the same Idempotency-Key returns cached response without duplicate side-effects (header check alone is insufficient).",
                     rule.severity
                 )
 
@@ -240,14 +242,16 @@ class PolicyEngine:
             for m in asserting_tests:
                 test = all_tests.get(m.test_id)
                 if test:
+                    # An HTTP 409 assertion alone does not prove business duplicate detection unless the test verifies duplicate submission
+                    is_dup_test = any(kw in (test.title + " " + test.file_path).lower() for kw in ["duplicate", "dedup", "velocity", "re-submit", "resubmit"])
                     for a in test.assertions:
-                        if a.target == "409" or a.target == "DUPLICATE_PAYMENT":
+                        if a.target == "DUPLICATE_PAYMENT" or (a.target == "409" and is_dup_test):
                             has_dup_assertion = True
                             break
             if not has_dup_assertion:
                 return (
                     False,
-                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts HTTP 409 Conflict rejection or DUPLICATE_PAYMENT code when separate submissions contain duplicate business fields.",
+                    f"Gate '{rule.name}' ({rule.rule_id}) failed: No automated test asserts HTTP 409 Conflict rejection or DUPLICATE_PAYMENT code within duplicate submission context (generic 409 alone is insufficient).",
                     rule.severity
                 )
 

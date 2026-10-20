@@ -110,7 +110,7 @@ def match_and_rank_tests(
             for kw in ["payment", "checkout", "auth", "login", "refund", "report"]:
                 if any(kw in f.lower() for f in fingerprints.get("files_changed", [])) and kw in test_title.lower():
                     evidence_tiers.append("Tier 5 (Semantic)")
-                    reasons.append(f"Semantic match on domain keyword '{kw}'")
+                    reasons.append(f"Semantic match on domain keyword '{kw}' (Advisory fallback; direct interface and outcome unverified)")
                     break
 
         if not evidence_tiers:

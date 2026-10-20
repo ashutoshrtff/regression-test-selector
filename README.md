@@ -25,7 +25,7 @@ In enterprise platforms (like Payments Services Platforms):
 
 ## 2. Benchmark Results & Demonstrable Impact
 
-Benchmarked using `scripts/backtest.py` across historical PR diffs and verified defects:
+Benchmarked using `scripts/backtest.py` across synthetic PR diff fixtures (`dev-diffs/pr-101.diff` to `pr-105.diff`) and mock defects dataset:
 
 | Metric | Full Suite Baseline | RTS Targeted Selection | Improvement / Impact |
 | :--- | :---: | :---: | :---: |
@@ -34,6 +34,8 @@ Benchmarked using `scripts/backtest.py` across historical PR diffs and verified 
 | **Known Defect Recall** | 100% | **100.0%** (4/4 caught) | **Zero defect escapes** |
 | **False Negative Rate** | 0.0% | **0.0%** | **Guaranteed recall priority** |
 | **Coverage Gaps Flagged** | 0 (blind) | **3 Gaps Flagged** | **Proactive test scenario suggestions** |
+
+> **Dataset Disclosure**: Benchmark results reflect offline backtesting simulations across 5 synthetic PR diff fixtures and cataloged mock automation test fixtures (`known-defects.csv`, `playwright-index.json`). They characterize deterministic selection algorithm performance rather than multi-tenant production CI execution telemetry.
 
 ---
 

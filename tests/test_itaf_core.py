@@ -23,6 +23,8 @@ from itaf.core.models import (
     ExpectedOutcome,
     DiscoveredTestCase,
     AssertionEvidence,
+    RequirementTestMapping,
+    RequirementCoverageAssessment,
     RequirementType,
     RequirementOrigin,
     RuleSeverity,
@@ -380,6 +382,624 @@ class TestIncrementalCache(unittest.TestCase):
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+
+class TestFalseAssuranceGuards(unittest.TestCase):
+    """
+    Priority 2: Rigorous verification that superficial matches do not falsely establish
+    coverage or satisfy mandatory quality gates.
+    """
+
+    def setUp(self):
+        self.policy_engine = PolicyEngine()
+        self.mapper = CrossRepoMapper()
+
+    def test_idempotency_header_alone_does_not_prove_safe_replay(self):
+        """A test checking Idempotency-Key header alone cannot satisfy GATE-PAY-001 or outcome."""
+        req = Requirement(
+            requirement_id="REQ-PAY-IDEMP-01",
+            title="Idempotent Payment Replay",
+            description="Replaying request with same key returns cached result.",
+            req_type=RequirementType.IDEMPOTENCY,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="PAYMENTS",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.BLOCKER,
+            applicable_rule_ids=["GATE-PAY-001"],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-PAY-IDEMP-01",
+                    requirement_id="REQ-PAY-IDEMP-01",
+                    outcome_type=RequirementType.IDEMPOTENCY,
+                    description="Cached response returned on duplicate key",
+                    target_interface="/api/v1/payments/process"
+                )
+            ]
+        )
+
+        # Test ONLY asserts header presence
+        test_case = DiscoveredTestCase(
+            test_id="test_header_only",
+            title="Verify idempotency header was sent",
+            file_path="tests/idemp.spec.ts",
+            line_number=10,
+            framework="playwright-ts",
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[
+                AssertionEvidence(
+                    assertion_type="HEADER",
+                    target="idempotency-key",
+                    raw_statement="expect(headers['idempotency-key']).toBeDefined()",
+                    line_number=15,
+                    is_deep_assertion=True
+                )
+            ]
+        )
+
+        all_tests = {"test_header_only": test_case}
+        mappings = self.mapper.map_requirement_to_tests(req, all_tests)
+
+        # Mappings should not assert outcome
+        asserting_mappings = [m for m in mappings if m.asserts_outcome]
+        self.assertEqual(len(asserting_mappings), 0, "Header check alone must NOT assert idempotency safe replay outcome!")
+
+        # Policy engine must fail GATE-PAY-001
+        rule = self.policy_engine.rules["GATE-PAY-001"]
+        passes, explanation, _ = self.policy_engine.evaluate_gate(rule, req, mappings, all_tests)
+        self.assertFalse(passes, "GATE-PAY-001 must FAIL if tests only check header presence!")
+        self.assertIn("failed", explanation.lower())
+
+    def test_http_409_alone_does_not_prove_duplicate_detection(self):
+        """A generic 409 assertion in a non-duplicate test cannot satisfy GATE-PAY-002."""
+        req = Requirement(
+            requirement_id="REQ-PAY-DUP-01",
+            title="Business Duplicate Detection",
+            description="Reject duplicate payments within 60s window.",
+            req_type=RequirementType.DUPLICATE_DETECTION,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="PAYMENTS",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.BLOCKER,
+            applicable_rule_ids=["GATE-PAY-002"],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-PAY-DUP-01",
+                    requirement_id="REQ-PAY-DUP-01",
+                    outcome_type=RequirementType.DUPLICATE_DETECTION,
+                    description="409 on duplicate payload",
+                    target_interface="/api/v1/payments/process",
+                    expected_status_code=409
+                )
+            ]
+        )
+
+        # Unrelated test that asserts 409 (e.g. optimistic lock conflict)
+        test_case = DiscoveredTestCase(
+            test_id="test_lock_conflict",
+            title="Update user profile concurrent optimistic lock conflict",
+            file_path="tests/user.spec.ts",
+            line_number=20,
+            framework="playwright-ts",
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[
+                AssertionEvidence(
+                    assertion_type="STATUS_CODE",
+                    target="409",
+                    raw_statement="expect(res.status).toBe(409)",
+                    line_number=25,
+                    is_deep_assertion=True
+                )
+            ]
+        )
+
+        all_tests = {"test_lock_conflict": test_case}
+        mappings = self.mapper.map_requirement_to_tests(req, all_tests)
+        asserting_mappings = [m for m in mappings if m.asserts_outcome]
+        self.assertEqual(len(asserting_mappings), 0, "Generic 409 in unrelated test must NOT satisfy duplicate outcome!")
+
+        rule = self.policy_engine.rules["GATE-PAY-002"]
+        passes, _, _ = self.policy_engine.evaluate_gate(rule, req, mappings, all_tests)
+        self.assertFalse(passes, "GATE-PAY-002 must FAIL when 409 occurs outside duplicate submission context!")
+
+    def test_http_503_alone_does_not_prove_successful_retry(self):
+        """Asserting HTTP 503 alone does not prove retry behavior or recovery."""
+        req = Requirement(
+            requirement_id="REQ-PAY-RETRY-01",
+            title="Downstream Retry and Recovery",
+            description="Retry transient 503 errors with exponential backoff.",
+            req_type=RequirementType.RESILIENCE_RETRY,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="PAYMENTS",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.CRITICAL,
+            applicable_rule_ids=["GATE-RET-001"],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-PAY-RETRY-01",
+                    requirement_id="REQ-PAY-RETRY-01",
+                    outcome_type=RequirementType.RESILIENCE_RETRY,
+                    description="Downstream retry attempts",
+                    target_interface="/api/v1/payments/process"
+                )
+            ]
+        )
+
+        # Test only asserts downstream 503 without testing retries
+        test_case = DiscoveredTestCase(
+            test_id="test_downstream_503",
+            title="Downstream gateway returns 503 service unavailable",
+            file_path="tests/retry.spec.ts",
+            line_number=30,
+            framework="playwright-ts",
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[
+                AssertionEvidence(
+                    assertion_type="STATUS_CODE",
+                    target="503",
+                    raw_statement="expect(res.status).toBe(503)",
+                    line_number=35,
+                    is_deep_assertion=True
+                )
+            ]
+        )
+
+        all_tests = {"test_downstream_503": test_case}
+        mappings = self.mapper.map_requirement_to_tests(req, all_tests)
+        asserting_mappings = [m for m in mappings if m.asserts_outcome]
+        self.assertEqual(len(asserting_mappings), 0, "503 assertion alone must NOT assert retry outcome!")
+
+        rule = self.policy_engine.rules["GATE-RET-001"]
+        passes, _, _ = self.policy_engine.evaluate_gate(rule, req, mappings, all_tests)
+        self.assertFalse(passes, "GATE-RET-001 must FAIL if no retry attempts / counts are asserted!")
+
+    def test_unrelated_assertion_cannot_satisfy_mandatory_outcome(self):
+        """A test asserting 200 or UI text cannot satisfy a 401 Unauthorized requirement."""
+        req = Requirement(
+            requirement_id="REQ-SEC-AUTH-01",
+            title="Authentication Guard",
+            description="Reject unauthenticated requests with 401.",
+            req_type=RequirementType.SECURITY,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="SECURITY",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.BLOCKER,
+            applicable_rule_ids=["GATE-SEC-001"],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-SEC-401",
+                    requirement_id="REQ-SEC-AUTH-01",
+                    outcome_type=RequirementType.SECURITY,
+                    description="401 Unauthorized",
+                    target_interface="/api/v1/payments/process",
+                    expected_status_code=401
+                )
+            ]
+        )
+
+        test_case = DiscoveredTestCase(
+            test_id="test_positive_payment",
+            title="Submit payment positive flow",
+            file_path="tests/pay.spec.ts",
+            line_number=1,
+            framework="playwright-ts",
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[
+                AssertionEvidence(
+                    assertion_type="STATUS_CODE",
+                    target="200",
+                    raw_statement="expect(res.status).toBe(200)",
+                    line_number=5,
+                    is_deep_assertion=True
+                ),
+                AssertionEvidence(
+                    assertion_type="UI_TEXT",
+                    target="Payment Successful",
+                    raw_statement="expect(page.getByText('Payment Successful')).toBeVisible()",
+                    line_number=6,
+                    is_deep_assertion=False
+                )
+            ]
+        )
+
+        mappings = self.mapper.map_requirement_to_tests(req, {"test_positive_payment": test_case})
+        asserting = [m for m in mappings if m.asserts_outcome]
+        self.assertEqual(len(asserting), 0, "Positive 200 / UI text assertion must not satisfy 401 security outcome!")
+
+    def test_jira_and_endpoint_match_without_outcome_evidence_not_confirmed(self):
+        """A test matching Jira ticket and endpoint but lacking assertions does not gain confirmed coverage."""
+        req = Requirement(
+            requirement_id="PAY-900-FEATURE",
+            title="Core Payment Processing",
+            description="Process payments with Jira key PAY-900.",
+            req_type=RequirementType.FUNCTIONAL,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="PAYMENTS",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.MAJOR,
+            applicable_rule_ids=[],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-PAY-900-SUCCESS",
+                    requirement_id="PAY-900-FEATURE",
+                    outcome_type=RequirementType.POSITIVE,
+                    description="Payment returns 200 OK",
+                    target_interface="/api/v1/payments/process",
+                    expected_status_code=200
+                )
+            ]
+        )
+
+        # Test has Jira key PAY-900 and visits endpoint, but has ZERO assertions
+        test_case = DiscoveredTestCase(
+            test_id="test_jira_only",
+            title="[PAY-900] Visit payment page",
+            file_path="tests/visit.spec.ts",
+            line_number=1,
+            framework="playwright-ts",
+            jira_keys=["PAY-900"],
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[]
+        )
+
+        mappings = self.mapper.map_requirement_to_tests(req, {"test_jira_only": test_case})
+        self.assertEqual(len(mappings), 1)
+        self.assertEqual(mappings[0].confidence, MappingConfidence.MEDIUM)
+        self.assertFalse(mappings[0].asserts_outcome, "Non-asserting test must have asserts_outcome=False")
+
+        # Evaluate through Coverage Intelligence Engine
+        engine = CoverageIntelligenceEngine(policy_engine=self.policy_engine, mapper=self.mapper)
+        assessments = engine.assess_coverage([req], {"test_jira_only": test_case})
+        self.assertEqual(len(assessments), 1)
+        self.assertEqual(assessments[0].coverage_status, CoverageStatus.MISSING_COVERAGE,
+                         "A test with zero assertions must not establish coverage!")
+
+    def test_coverage_status_and_execution_status_are_independent(self):
+        """A requirement with full test coverage whose tests were not run must report TEST_NOT_EXECUTED."""
+        req = Requirement(
+            requirement_id="REQ-COV-EXEC-INDEP",
+            title="Idempotency Requirement",
+            description="Safe replay verified.",
+            req_type=RequirementType.IDEMPOTENCY,
+            origin=RequirementOrigin.EXPLICIT_SPEC,
+            domain="PAYMENTS",
+            service="payment-service",
+            interface="POST /api/v1/payments/process",
+            mandatory=True,
+            severity=RuleSeverity.BLOCKER,
+            applicable_rule_ids=["GATE-PAY-001"],
+            expected_outcomes=[
+                ExpectedOutcome(
+                    outcome_id="OUT-IDEMP-VERIFIED",
+                    requirement_id="REQ-COV-EXEC-INDEP",
+                    outcome_type=RequirementType.IDEMPOTENCY,
+                    description="Safe replay",
+                    target_interface="/api/v1/payments/process"
+                )
+            ]
+        )
+
+        test_case = DiscoveredTestCase(
+            test_id="test_idemp_deep",
+            title="Verify safe replay returns cached response",
+            file_path="tests/idemp.spec.ts",
+            line_number=1,
+            framework="playwright-ts",
+            endpoints_visited=["/api/v1/payments/process"],
+            assertions=[
+                AssertionEvidence(
+                    assertion_type="IDEMPOTENCY_FLAG",
+                    target="idempotency_verified",
+                    raw_statement="expect(body.idempotency_verified).toBe(true)",
+                    line_number=10,
+                    is_deep_assertion=True
+                )
+            ]
+        )
+        # No execution evidence provided -> TEST_NOT_EXECUTED
+        engine = CoverageIntelligenceEngine(policy_engine=self.policy_engine, mapper=self.mapper)
+        assessments = engine.assess_coverage([req], {"test_idemp_deep": test_case}, execution_evidence={})
+
+        self.assertEqual(assessments[0].coverage_status, CoverageStatus.COVERED)
+        self.assertEqual(assessments[0].execution_status, ExecutionStatus.TEST_NOT_EXECUTED)
+        self.assertNotEqual(assessments[0].execution_status, ExecutionStatus.EXECUTION_PASSED)
+
+
+class TestRegressionSelectionValidation(unittest.TestCase):
+    """
+    Priority 3: Verifies regression selection across indirect dependencies, shared DTOs,
+    configuration changes, missing specs, unknown files, and stale test indexes.
+    """
+
+    def setUp(self):
+        self.available_tests = {
+            "test_pay_success": DiscoveredTestCase(
+                test_id="test_pay_success",
+                title="Successfully submit real-time payment",
+                file_path="tests/payments.spec.ts",
+                line_number=10,
+                framework="playwright-ts",
+                in_regression_suite=True,
+                in_smoke_suite=True,
+                endpoints_visited=["/api/v1/payments/process"],
+                assertions=[AssertionEvidence("STATUS_CODE", "200", "status 200", 12, True)]
+            ),
+            "test_data_integrity": DiscoveredTestCase(
+                test_id="test_data_integrity",
+                title="Reject missing currency or debtorAccount field",
+                file_path="tests/integrity.spec.ts",
+                line_number=20,
+                framework="playwright-ts",
+                in_regression_suite=True,
+                in_smoke_suite=False,
+                endpoints_visited=["/api/v1/payments/process"],
+                assertions=[AssertionEvidence("STATUS_CODE", "400", "status 400", 25, True)]
+            ),
+            "test_smoke_health": DiscoveredTestCase(
+                test_id="test_smoke_health",
+                title="Smoke health check and gateway probe",
+                file_path="tests/smoke.spec.ts",
+                line_number=1,
+                framework="playwright-ts",
+                in_regression_suite=False,
+                in_smoke_suite=True,
+                endpoints_visited=["/api/v1/health"],
+                assertions=[AssertionEvidence("STATUS_CODE", "200", "status 200", 5, True)]
+            )
+        }
+
+        self.selector = RegressionSelector(available_tests=self.available_tests)
+
+    def test_shared_dto_change_triggers_affected_requirements(self):
+        """A PR modifying shared DTO field 'currency' activates data integrity requirements."""
+        assessment = RequirementCoverageAssessment(
+            requirement_id="REQ-MSG-CURRENCY-INTEGRITY",
+            title="Message Element Integrity: currency",
+            domain="PAYMENTS",
+            service="payment-service",
+            coverage_status=CoverageStatus.COVERED,
+            mapped_tests=[
+                RequirementTestMapping(
+                    requirement_id="REQ-MSG-CURRENCY-INTEGRITY",
+                    outcome_id="OUT-MSG-CURRENCY",
+                    test_id="test_data_integrity",
+                    confidence=MappingConfidence.HIGH,
+                    evidence_summary="Asserts currency rejection 400",
+                    asserts_outcome=True,
+                    mapping_source="INTERFACE_ASSERTION"
+                )
+            ],
+            uncovered_outcomes=[],
+            applicable_rules=[],
+            failing_gate_ids=[],
+            execution_status=ExecutionStatus.EXECUTION_PASSED,
+            assessment_notes=["[PASS] Covered"],
+            suggested_test_scenario=None
+        )
+
+        fingerprints = {
+            "endpoints": [],
+            "routes": [],
+            "jira_keys": [],
+            "dto_fields": ["currency"],
+            "files_changed": ["src/dto/PaymentRequest.java"],
+            "risk_signals": []
+        }
+
+        decisions, gaps, notes = self.selector.select_tests_for_change(fingerprints, [assessment])
+        selected_ids = [d.test_id for d in decisions]
+        self.assertIn("test_data_integrity", selected_ids, "Test covering changed DTO must be selected!")
+
+    def test_indirect_dependency_and_configuration_changes(self):
+        """Configuration changes (e.g. pom.xml / migration) activate risk widening and smoke tests."""
+        assessment = RequirementCoverageAssessment(
+            requirement_id="REQ-PAY-CORE",
+            title="Payment Core",
+            domain="PAYMENTS",
+            service="payment-service",
+            coverage_status=CoverageStatus.COVERED,
+            mapped_tests=[],
+            uncovered_outcomes=[],
+            applicable_rules=[],
+            failing_gate_ids=[],
+            execution_status=ExecutionStatus.TEST_NOT_EXECUTED,
+            assessment_notes=[],
+            suggested_test_scenario=None
+        )
+
+        fingerprints = {
+            "endpoints": [],
+            "routes": [],
+            "jira_keys": [],
+            "dto_fields": [],
+            "files_changed": ["pom.xml", "db/migrations/V10__add_index.sql"],
+            "risk_signals": [
+                {"category": "build_configuration", "explanation": "pom.xml modified"},
+                {"category": "database_migrations", "explanation": "V10 migration modified"}
+            ]
+        }
+
+        decisions, gaps, notes = self.selector.select_tests_for_change(fingerprints, [assessment])
+        smoke_decisions = [d for d in decisions if d.priority == "SMOKE_ONLY"]
+        self.assertTrue(len(smoke_decisions) > 0, "Risk widening must activate smoke tests when config/migrations change!")
+        smoke_ids = [d.test_id for d in smoke_decisions]
+        self.assertIn("test_smoke_health", smoke_ids)
+
+    def test_unknown_files_and_missing_specifications_widen_conservatively(self):
+        """Changes touching unmapped endpoints or unknown files conservatively fall back to domain tests."""
+        assessment = RequirementCoverageAssessment(
+            requirement_id="REQ-PAY-CORE",
+            title="Payment Core",
+            domain="PAYMENTS",
+            service="payment-service",
+            coverage_status=CoverageStatus.COVERED,
+            mapped_tests=[
+                RequirementTestMapping(
+                    requirement_id="REQ-PAY-CORE",
+                    outcome_id="OUT-1",
+                    test_id="test_pay_success",
+                    confidence=MappingConfidence.HIGH,
+                    evidence_summary="Covers payments",
+                    asserts_outcome=True,
+                    mapping_source="INTERFACE_ASSERTION"
+                )
+            ],
+            uncovered_outcomes=[],
+            applicable_rules=[],
+            failing_gate_ids=[],
+            execution_status=ExecutionStatus.EXECUTION_PASSED,
+            assessment_notes=[],
+            suggested_test_scenario=None
+        )
+
+        fingerprints = {
+            "endpoints": ["/api/v1/unknown-external-webhook"],
+            "routes": [],
+            "jira_keys": [],
+            "dto_fields": [],
+            "files_changed": ["scripts/unknown-helper.sh"],
+            "risk_signals": []
+        }
+
+        decisions, gaps, notes = self.selector.select_tests_for_change(fingerprints, [assessment])
+        self.assertTrue(any("conservative domain fallback" in n.lower() for n in notes),
+                        "Warning notes must state that conservative domain fallback was applied!")
+        self.assertIn("test_pay_success", [d.test_id for d in decisions],
+                      "Domain test must be conservatively selected on unmapped impact!")
+
+    def test_stale_test_index_resilience(self):
+        """If mapped test no longer exists in available tests, selector safely excludes it without error."""
+        assessment = RequirementCoverageAssessment(
+            requirement_id="REQ-STALE-01",
+            title="Stale Test Requirement",
+            domain="PAYMENTS",
+            service="payment-service",
+            coverage_status=CoverageStatus.PARTIALLY_COVERED,
+            mapped_tests=[
+                RequirementTestMapping(
+                    requirement_id="REQ-STALE-01",
+                    outcome_id="OUT-STALE",
+                    test_id="test_deleted_from_repo_yesterday",
+                    confidence=MappingConfidence.HIGH,
+                    evidence_summary="Historical mapping",
+                    asserts_outcome=True,
+                    mapping_source="INTERFACE_ASSERTION"
+                )
+            ],
+            uncovered_outcomes=[],
+            applicable_rules=[],
+            failing_gate_ids=[],
+            execution_status=ExecutionStatus.TEST_NOT_EXECUTED,
+            assessment_notes=[],
+            suggested_test_scenario={"title": "Re-implement deleted test", "target_interface": "/api/v1/payments", "severity": "HIGH", "steps": ["Step 1"]}
+        )
+
+        fingerprints = {
+            "endpoints": ["/api/v1/payments"],
+            "routes": [],
+            "jira_keys": [],
+            "dto_fields": [],
+            "files_changed": [],
+            "risk_signals": []
+        }
+
+        decisions, gaps, notes = self.selector.select_tests_for_change(fingerprints, [assessment])
+        self.assertNotIn("test_deleted_from_repo_yesterday", [d.test_id for d in decisions])
+        self.assertTrue(len(gaps) > 0, "Unmitigated gap must be reported when tests are missing/stale!")
+        self.assertEqual(gaps[0]["requirement_id"], "REQ-STALE-01")
+
+    def test_itaf_and_rts_skill_compatibility(self):
+        """Verifies that RTS matcher and ITAF RegressionSelector produce compatible decisions for PR-101."""
+        scripts_dir = os.path.join(WORKSPACE_ROOT, ".github", "skills", "regression-test-selector", "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from matcher import match_and_rank_tests
+
+        # Synthetic PR-101 fingerprints
+        pr_101_fingerprints = {
+            "endpoints": ["POST /api/v1/payments/process"],
+            "routes": ["/checkout/payment"],
+            "jira_keys": ["PAY-900"],
+            "dto_fields": ["idempotency_key"],
+            "files_changed": ["src/controllers/PaymentController.ts"],
+            "risk_signals": []
+        }
+
+        # Index with one payment test
+        test_index = {
+            "tests": [
+                {
+                    "id": "tests/payments.spec.ts:10:Successfully submit real-time payment",
+                    "title": "Successfully submit real-time payment",
+                    "file": "tests/payments.spec.ts",
+                    "line": 10,
+                    "in_regression_suite": True,
+                    "endpoints_called": ["POST /api/v1/payments/process"],
+                    "routes_visited": ["/checkout/payment"],
+                    "jira_keys": ["PAY-900"],
+                    "assertions": [{"type": "STATUS_CODE", "target": "200"}]
+                }
+            ]
+        }
+
+        rts_result = match_and_rank_tests(pr_101_fingerprints, test_index)
+        self.assertTrue(len(rts_result["must_run"]) >= 1, "RTS skill must place direct endpoint match in MUST_RUN")
+        self.assertEqual(rts_result["must_run"][0]["confidence"], "High")
+
+        # Now evaluate via ITAF RegressionSelector
+        itaf_test = DiscoveredTestCase(
+            test_id="tests/payments.spec.ts:10:Successfully submit real-time payment",
+            title="Successfully submit real-time payment",
+            file_path="tests/payments.spec.ts",
+            line_number=10,
+            framework="playwright-ts",
+            in_regression_suite=True,
+            endpoints_visited=["/api/v1/payments/process"],
+            routes_visited=["/checkout/payment"],
+            jira_keys=["PAY-900"],
+            assertions=[AssertionEvidence("STATUS_CODE", "200", "status 200", 12, True)]
+        )
+
+        assessment = RequirementCoverageAssessment(
+            requirement_id="REQ-PAY-PROCESS",
+            title="Process Payment",
+            domain="PAYMENTS",
+            service="payment-service",
+            coverage_status=CoverageStatus.COVERED,
+            mapped_tests=[
+                RequirementTestMapping(
+                    requirement_id="REQ-PAY-PROCESS",
+                    outcome_id="OUT-1",
+                    test_id=itaf_test.test_id,
+                    confidence=MappingConfidence.CONFIRMED,
+                    evidence_summary="Direct endpoint and outcome match",
+                    asserts_outcome=True,
+                    mapping_source="INTERFACE_ASSERTION"
+                )
+            ],
+            uncovered_outcomes=[],
+            applicable_rules=[],
+            failing_gate_ids=[],
+            execution_status=ExecutionStatus.EXECUTION_PASSED,
+            assessment_notes=[],
+            suggested_test_scenario=None
+        )
+
+        itaf_selector = RegressionSelector(available_tests={itaf_test.test_id: itaf_test})
+        itaf_decisions, _, _ = itaf_selector.select_tests_for_change(pr_101_fingerprints, [assessment])
+
+        self.assertEqual(len(itaf_decisions), 1)
+        self.assertEqual(itaf_decisions[0].test_id, rts_result["must_run"][0]["id"])
+        self.assertEqual(itaf_decisions[0].priority, "MUST_RUN")
 
 
 class TestWebServerSecurity(unittest.TestCase):

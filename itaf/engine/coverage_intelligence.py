@@ -125,12 +125,19 @@ class CoverageIntelligenceEngine:
             else:
                 coverage_status = CoverageStatus.MISSING_COVERAGE
 
-            # 5. Determine combined ExecutionStatus of mapped tests
-            if not mapped_tests:
-                exec_status = ExecutionStatus.EVIDENCE_MISSING
-            elif any(available_tests[m.test_id].execution_status == ExecutionStatus.EXECUTION_FAILED for m in mapped_tests if m.test_id in available_tests):
+            # 5. Determine combined ExecutionStatus of mapped tests (independently from coverage status)
+            asserting_mapped = [m for m in mapped_tests if m.asserts_outcome]
+            relevant_tests = [available_tests[m.test_id] for m in asserting_mapped if m.test_id in available_tests]
+
+            if not relevant_tests:
+                if mapped_tests and any(m.test_id in available_tests for m in mapped_tests):
+                    # Tests visit interface/Jira but do NOT assert this requirement's expected outcome
+                    exec_status = ExecutionStatus.TEST_NOT_EXECUTED
+                else:
+                    exec_status = ExecutionStatus.EVIDENCE_MISSING
+            elif any(t.execution_status == ExecutionStatus.EXECUTION_FAILED for t in relevant_tests):
                 exec_status = ExecutionStatus.EXECUTION_FAILED
-            elif any(available_tests[m.test_id].execution_status == ExecutionStatus.EXECUTION_PASSED for m in mapped_tests if m.test_id in available_tests):
+            elif all(t.execution_status == ExecutionStatus.EXECUTION_PASSED for t in relevant_tests):
                 exec_status = ExecutionStatus.EXECUTION_PASSED
             else:
                 exec_status = ExecutionStatus.TEST_NOT_EXECUTED

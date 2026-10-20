@@ -37,6 +37,7 @@ class RegressionSelector:
         change_endpoints = {ep.split(" ", 1)[-1] for ep in change_fingerprints.get("endpoints", [])}
         change_routes = set(change_fingerprints.get("routes", []))
         change_jira = set(change_fingerprints.get("jira_keys", []))
+        change_dtos = {f.lower().strip() for f in change_fingerprints.get("dto_fields", [])}
         risk_signals = change_fingerprints.get("risk_signals", [])
 
         # Determine if risk widening should be triggered
@@ -87,8 +88,17 @@ class RegressionSelector:
                     is_affected = True
                     break
 
+            if not is_affected and change_dtos:
+                for dto in change_dtos:
+                    if dto in ass.title.lower() or dto in ass.requirement_id.lower() or any(
+                        dto in (out.description or "").lower() or dto in out.outcome_id.lower()
+                        for out in ass.uncovered_outcomes
+                    ):
+                        is_affected = True
+                        break
+
             # If no technical endpoints were resolved from diff, fall back conservatively to all requirements in domain
-            if is_affected or (len(change_endpoints) == 0 and len(change_routes) == 0 and len(change_jira) == 0):
+            if is_affected or (len(change_endpoints) == 0 and len(change_routes) == 0 and len(change_jira) == 0 and len(change_dtos) == 0):
                 affected_assessments.append(ass)
 
         # Conservative selection fallback: if diff has evidence but no requirement matched

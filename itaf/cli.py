@@ -162,7 +162,8 @@ def cmd_gates(args):
 
 def cmd_report(args):
     """Generates an audit report."""
-    data = run_itaf_analysis()
+    feature_dir = getattr(args, "feature_dir", None)
+    data = run_itaf_analysis(sample_feature_dir=feature_dir)
     report_md = generate_markdown_report(data["assessments"])
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
@@ -183,13 +184,13 @@ def main():
 
     # assess
     p_assess = subparsers.add_parser("assess", help="Assess requirement and quality gate coverage")
-    p_assess.add_argument("--feature-dir", type=str, help="Path to feature directory containing specifications")
+    p_assess.add_argument("--feature", "--feature-dir", dest="feature_dir", type=str, help="Path to feature directory containing specifications")
     p_assess.add_argument("--json", action="store_true", help="Output JSON format")
 
     # select
     p_select = subparsers.add_parser("select", help="Select regression tests based on change and requirements")
-    p_select.add_argument("--diff-file", type=str, required=True, help="Unified diff file representing code change")
-    p_select.add_argument("--feature-dir", type=str, help="Path to feature directory")
+    p_select.add_argument("--diff", "--diff-file", dest="diff_file", type=str, required=True, help="Unified diff file representing code change")
+    p_select.add_argument("--feature", "--feature-dir", dest="feature_dir", type=str, help="Path to feature directory")
     p_select.add_argument("--json", action="store_true", help="Output JSON format")
 
     # gates
@@ -198,6 +199,7 @@ def main():
 
     # report
     p_report = subparsers.add_parser("report", help="Generate audit-ready test assurance report")
+    p_report.add_argument("--feature", "--feature-dir", dest="feature_dir", type=str, default="examples/sample_feature", help="Path to feature directory")
     p_report.add_argument("--output", type=str, help="Output file path (default stdout)")
 
     # serve
