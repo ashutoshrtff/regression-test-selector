@@ -1,0 +1,16 @@
+diff --git a/src/main/java/com/psp/payment/util/PaymentCalculationHelper.java b/src/main/java/com/psp/payment/util/PaymentCalculationHelper.java
+index 77aa331..88bb442 100644
+--- a/src/main/java/com/psp/payment/util/PaymentCalculationHelper.java
++++ b/src/main/java/com/psp/payment/util/PaymentCalculationHelper.java
+@@ -10,8 +10,10 @@ public class PaymentCalculationHelper {
+      * Calculates interchange processing fee.
++     * Ref: PAY-102 Update margin calculations for debit transactions
+      */
+     public static BigDecimal calculateInterchangeFee(BigDecimal amount, CardType cardType) {
+-        if (cardType == CardType.CREDIT) {
++        if (cardType == CardType.DEBIT) {
++            return amount.multiply(new BigDecimal("0.005"));
++        } else if (cardType == CardType.CREDIT) {
+             return amount.multiply(new BigDecimal("0.015"));
+         }
+         return BigDecimal.ZERO;

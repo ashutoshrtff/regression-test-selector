@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RequirementCoverageAssessment",
+  "description": "Schema for requirement coverage assessment and hard gate outcomes",
+  "type": "object",
+  "required": ["requirement_id", "title", "domain", "service", "coverage_status"],
+  "properties": {
+    "requirement_id": { "type": "string" },
+    "title": { "type": "string" },
+    "domain": { "type": "string" },
+    "service": { "type": "string" },
+    "coverage_status": {
+      "type": "string",
+      "enum": ["COVERED", "PARTIALLY_COVERED", "MISSING_COVERAGE", "BLOCKED", "AMBIGUOUS", "NOT_APPLICABLE"]
+    },
+    "mapped_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["requirement_id", "outcome_id", "test_id", "confidence"],
+        "properties": {
+          "requirement_id": { "type": "string" },
+          "outcome_id": { "type": "string" },
+          "test_id": { "type": "string" },
+          "confidence": { "type": "string", "enum": ["CONFIRMED", "HIGH", "MEDIUM", "LOW", "AMBIGUOUS", "MISSING"] },
+          "evidence_summary": { "type": "string" },
+          "asserts_outcome": { "type": "boolean" },
+          "mapping_source": { "type": "string" }
+        }
+      }
+    },
+    "uncovered_outcomes": { "type": "array" },
+    "applicable_rules": { "type": "array", "items": { "type": "string" } },
+    "failing_gate_ids": { "type": "array", "items": { "type": "string" } },
+    "execution_status": { "type": "string" },
+    "assessment_notes": { "type": "array", "items": { "type": "string" } },
+    "suggested_test_scenario": { "type": ["object", "null"] }
+  }
+}

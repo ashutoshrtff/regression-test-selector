@@ -1,0 +1,5 @@
+pr_id,test_id,description
+pr-101,PAY-101,3DS version compatibility regression in card checkout
+pr-102,PAY-102,Interchange fee debit margin calculation mismatch
+pr-104,AUTH-401,JWT token validation rejection across microservice calls
+pr-105,PAY-8821,Expired card token standardization regression

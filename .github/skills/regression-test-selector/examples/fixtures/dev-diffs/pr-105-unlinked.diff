@@ -1,0 +1,12 @@
+diff --git a/src/main/java/com/psp/payment/validation/CardValidator.java b/src/main/java/com/psp/payment/validation/CardValidator.java
+index 5566778..8899001 100644
+--- a/src/main/java/com/psp/payment/validation/CardValidator.java
++++ b/src/main/java/com/psp/payment/validation/CardValidator.java
+@@ -18,6 +18,10 @@ public class CardValidator {
+     public ValidationResult validateCardToken(String cardToken, int expMonth, int expYear) {
+         if (isExpired(expMonth, expYear)) {
++            // PAY-8821: Standardize expired card response code
++            return ValidationResult.failed("ERR_CARD_EXPIRED", "The submitted card has expired");
+         }
+         return ValidationResult.success();
+     }

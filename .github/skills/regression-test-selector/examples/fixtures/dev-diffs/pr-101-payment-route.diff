@@ -1,0 +1,32 @@
+diff --git a/src/main/java/com/psp/payment/PaymentController.java b/src/main/java/com/psp/payment/PaymentController.java
+index e83b211..9f8a321 100644
+--- a/src/main/java/com/psp/payment/PaymentController.java
++++ b/src/main/java/com/psp/payment/PaymentController.java
+@@ -25,12 +25,17 @@ public class PaymentController {
+     @Autowired
+     private PaymentService paymentService;
+
+-    @PostMapping("/api/v1/payments/process")
+-    public ResponseEntity<PaymentResponse> processPayment(@RequestBody PaymentRequest request) {
+-        PaymentResponse response = paymentService.execute(request.getCardToken(), request.getAmount());
++    @PostMapping("/api/v1/payments/process")
++    public ResponseEntity<PaymentResponse> processPayment(
++            @RequestHeader(value = "X-3DS-Version", defaultValue = "2.2.0") String threeDsVersion,
++            @RequestBody PaymentRequest request) {
++        // PAY-101: Support 3DS authentication flow
++        PaymentResponse response = paymentService.executeWith3DS(request.getCardToken(), request.getAmount(), threeDsVersion);
+         return ResponseEntity.ok(response);
+     }
+ }
+diff --git a/src/main/resources/templates/checkout.html b/src/main/resources/templates/checkout.html
+index 11ab223..44cd556 100644
+--- a/src/main/resources/templates/checkout.html
++++ b/src/main/resources/templates/checkout.html
+@@ -14,6 +14,7 @@
+     <form id="payment-form" action="/checkout/payment" method="POST">
+       <input type="text" data-testid="card-number-input" name="cardNumber" />
+       <input type="text" data-testid="cvv-input" name="cvv" />
+-      <button type="submit">Submit</button>
++      <button type="submit" data-testid="pay-button">Pay Now</button>
+     </form>
+ </body>

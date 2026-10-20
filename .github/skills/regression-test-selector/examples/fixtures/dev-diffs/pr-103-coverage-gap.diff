@@ -1,0 +1,36 @@
+diff --git a/src/main/java/com/psp/refund/RefundController.java b/src/main/java/com/psp/refund/RefundController.java
+new file mode 100644
+index 0000000..33ee771
+--- /dev/null
++++ b/src/main/java/com/psp/refund/RefundController.java
+@@ -0,0 +1,24 @@
++package com.psp.refund;
++
++import org.springframework.web.bind.annotation.*;
++import org.springframework.http.ResponseEntity;
++
++@RestController
++@RequestMapping("/api/v1/refunds")
++public class RefundController {
++
++    // PAY-309: Introduce Instant Refund endpoint
++    @PostMapping("/instant")
++    public ResponseEntity<RefundResult> processInstantRefund(@RequestBody InstantRefundRequest request) {
++        return ResponseEntity.ok(new RefundResult("REF_INSTANT_OK", request.getOriginalTxnId()));
++    }
++}
+diff --git a/src/main/resources/templates/refund.html b/src/main/resources/templates/refund.html
+new file mode 100644
+index 0000000..44ff882
+--- /dev/null
++++ b/src/main/resources/templates/refund.html
+@@ -0,0 +1,9 @@
++<!DOCTYPE html>
++<html>
++<body>
++  <h2>Request Instant Refund</h2>
++  <form action="/refund/instant" method="POST">
++    <button type="submit" data-testid="request-refund-btn">Initiate Refund</button>
++  </form>
++</body>
++</html>

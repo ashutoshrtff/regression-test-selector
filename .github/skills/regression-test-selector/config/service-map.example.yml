@@ -1,0 +1,37 @@
+# Service to Automation Test Mapping
+# Maps microservices or components to test tags, folders, and Jira project prefixes.
+
+services:
+  payment-processing-service:
+    jira_prefixes:
+      - "PAY"
+      - "PSP"
+    test_tags:
+      - "@payment"
+      - "@checkout"
+      - "@3ds"
+    test_folders:
+      - "tests/payments/**"
+      - "src/test/java/com/psp/tests/payment/**"
+
+  auth-identity-service:
+    jira_prefixes:
+      - "AUTH"
+      - "SEC"
+    test_tags:
+      - "@auth"
+      - "@login"
+      - "@session"
+    test_folders:
+      - "tests/auth/**"
+      - "src/test/java/com/psp/tests/auth/**"
+
+  refund-service:
+    jira_prefixes:
+      - "REF"
+      - "PAY"
+    test_tags:
+      - "@refund"
+      - "@dispute"
+    test_folders:
+      - "tests/refunds/**"

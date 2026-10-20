@@ -1,0 +1,49 @@
+# RTS Configuration Example
+# Place as `rts.config.yml` in your developer repository root.
+
+# Location of your automation repository (git clone URL or local relative/absolute path)
+# Supports github.com, *.ghe.com (GitHub Enterprise Cloud EU data residency), or on-prem GHES.
+automation_repo: https://github.com/example-org/payments-e2e-automation
+branch: main
+
+# Test framework used in the automation repo:
+# auto (default) | playwright-ts | selenium-java
+framework: auto
+
+# Test metadata source adapter:
+# repo-only (default) | xray | browserstack
+test_source: repo-only
+
+# Identification of regression suite tests (matched against tags, folder paths, or file lists)
+regression_suite:
+  tag: "@regression"
+  # folders:
+  #   - "tests/regression/**"
+
+# Identification of smoke suite tests (used for risk widening)
+smoke_suite:
+  tag: "@smoke"
+
+# Optional path to service mapping file
+service_map: ./service-map.yml
+
+# Optional overrides: always include specific tests/tags when matching paths change
+always_run:
+  - when_changed: "src/auth/**"
+    run_tag: "@smoke"
+  - when_changed: "**/migrations/**"
+    run_tag: "@smoke"
+
+# Paths that trigger risk widening when modified
+risk_paths:
+  - "**/migrations/**"
+  - "**/auth/**"
+  - "**/security/**"
+  - "pom.xml"
+  - "package.json"
+  - "build.gradle"
+  - "requirements.txt"
+
+# Command template for running selected tests in your CI or local dev environment
+# Placeholders: {grep} for Playwright grep expression, {test_names} for space-separated test IDs, {files} for file paths
+run_command_template: "npx playwright test --grep \"{grep}\""

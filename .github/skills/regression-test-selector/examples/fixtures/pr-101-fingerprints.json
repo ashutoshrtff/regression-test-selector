@@ -1,0 +1,32 @@
+{
+  "files_changed_count": 2,
+  "files_changed": [
+    "src/main/java/com/psp/payment/PaymentController.java",
+    "src/main/resources/templates/checkout.html"
+  ],
+  "jira_keys": [
+    "PAY-101"
+  ],
+  "endpoints": [
+    "POST /api/v1/payments/process"
+  ],
+  "routes": [
+    "/checkout/payment"
+  ],
+  "ui_labels": [
+    "Pay Now",
+    "pay-button"
+  ],
+  "dto_fields": [
+    "amount",
+    "cardNumber",
+    "cardToken",
+    "cvv",
+    "threeDsVersion"
+  ],
+  "feature_flags": [],
+  "config_keys": [],
+  "error_codes": [],
+  "shared_modules": [],
+  "risk_signals": []
+}

@@ -1,0 +1,23 @@
+diff --git a/src/auth/JwtTokenValidator.java b/src/auth/JwtTokenValidator.java
+index 1010101..2020202 100644
+--- a/src/auth/JwtTokenValidator.java
++++ b/src/auth/JwtTokenValidator.java
+@@ -15,7 +15,7 @@ public class JwtTokenValidator {
+     public boolean validateToken(String token) {
+-        return jwtParser.setSigningKey(secretKey).parseClaimsJws(token) != null;
++        // AUTH-909: Strengthen token signature verification algorithm
++        return jwtParser.requireIssuer("psp-auth-service").verifyWith(publicKey).build().parseSignedClaims(token) != null;
+     }
+ }
+diff --git a/pom.xml b/pom.xml
+index 3030303..4040404 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -45,7 +45,7 @@
+         <dependency>
+             <groupId>io.jsonwebtoken</groupId>
+             <artifactId>jjwt-api</artifactId>
+-            <version>0.11.5</version>
++            <version>0.12.5</version>
+         </dependency>
+     </dependencies>

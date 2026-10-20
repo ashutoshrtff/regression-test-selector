@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PolicyRule",
+  "description": "Schema for deterministic ITAF mandatory quality gates and policy rules",
+  "type": "object",
+  "required": ["rule_id", "name", "category", "severity", "mandatory", "applies_to", "required_outcomes", "failure_criteria"],
+  "properties": {
+    "rule_id": { "type": "string", "pattern": "^[A-Z0-9_-]+$" },
+    "name": { "type": "string" },
+    "category": { "type": "string", "enum": ["SECURITY", "RESILIENCE", "PAYMENT_CORRECTNESS", "API_STANDARDS", "OBSERVABILITY"] },
+    "description": { "type": "string" },
+    "severity": { "type": "string", "enum": ["BLOCKER", "CRITICAL", "MAJOR", "MINOR"] },
+    "mandatory": { "type": "boolean" },
+    "applies_to": {
+      "type": "object",
+      "properties": {
+        "domains": { "type": "array", "items": { "type": "string" } },
+        "methods": { "type": "array", "items": { "type": "string" } },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "interfaces": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "required_outcomes": { "type": "array", "items": { "type": "string" } },
+    "failure_criteria": { "type": "string" },
+    "source_standard": { "type": "string" },
+    "version": { "type": "string", "default": "1.0.0" }
+  }
+}

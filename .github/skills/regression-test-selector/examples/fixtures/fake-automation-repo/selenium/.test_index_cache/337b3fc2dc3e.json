@@ -1,0 +1,15 @@
+{
+  "meta": {
+    "framework": "playwright-ts",
+    "commit": "337b3fc2dc3e",
+    "repo_dir": "C:\\Users\\ashut\\Desktop\\Regression test selector\\.github\\skills\\regression-test-selector\\examples\\fixtures\\fake-automation-repo\\selenium",
+    "total_tests": 0,
+    "in_regression_suite": 0,
+    "in_smoke_suite": 0,
+    "tests_with_jira": 0,
+    "pct_jira": "0.0%",
+    "tests_with_endpoints_or_routes": 0,
+    "pct_endpoints_or_routes": "0.0%"
+  },
+  "tests": []
+}

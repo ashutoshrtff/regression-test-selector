@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Requirement",
+  "description": "Schema for canonical ITAF requirements and expected outcomes",
+  "type": "object",
+  "required": ["requirement_id", "title", "description", "req_type", "origin", "domain", "service", "interface"],
+  "properties": {
+    "requirement_id": { "type": "string" },
+    "title": { "type": "string" },
+    "description": { "type": "string" },
+    "req_type": {
+      "type": "string",
+      "enum": [
+        "FUNCTIONAL", "POSITIVE", "NEGATIVE", "SECURITY", "IDEMPOTENCY",
+        "DUPLICATE_DETECTION", "RESILIENCE_RETRY", "CIRCUIT_BREAKER",
+        "API_CONTRACT", "DATA_INTEGRITY", "OBSERVABILITY"
+      ]
+    },
+    "origin": { "type": "string", "enum": ["EXPLICIT_SPEC", "POLICY_GATE", "INFERRED"] },
+    "domain": { "type": "string" },
+    "service": { "type": "string" },
+    "interface": { "type": "string" },
+    "mandatory": { "type": "boolean" },
+    "severity": { "type": "string", "enum": ["BLOCKER", "CRITICAL", "MAJOR", "MINOR"] },
+    "applicable_rule_ids": { "type": "array", "items": { "type": "string" } },
+    "expected_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["outcome_id", "requirement_id", "outcome_type", "description", "target_interface"],
+        "properties": {
+          "outcome_id": { "type": "string" },
+          "requirement_id": { "type": "string" },
+          "outcome_type": { "type": "string" },
+          "description": { "type": "string" },
+          "target_interface": { "type": "string" },
+          "expected_status_code": { "type": ["integer", "null"] },
+          "expected_headers": { "type": "object" },
+          "expected_error_code": { "type": ["string", "null"] },
+          "required_assertions": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "acceptance_criteria": { "type": "array", "items": { "type": "string" } },
+    "ambiguity_notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

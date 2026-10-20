@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RegressionSelectionDecision",
+  "description": "Schema for ranked regression test selection decisions",
+  "type": "object",
+  "required": ["test_id", "title", "file_path", "framework", "priority", "confidence"],
+  "properties": {
+    "test_id": { "type": "string" },
+    "title": { "type": "string" },
+    "file_path": { "type": "string" },
+    "framework": { "type": "string" },
+    "in_regression_suite": { "type": "boolean" },
+    "priority": { "type": "string", "enum": ["MUST_RUN", "SHOULD_RUN", "SMOKE_ONLY"] },
+    "confidence": { "type": "string", "enum": ["HIGH", "MEDIUM", "LOW"] },
+    "selection_reasons": { "type": "array", "items": { "type": "string" } },
+    "affected_requirement_ids": { "type": "array", "items": { "type": "string" } },
+    "affected_outcomes": { "type": "array", "items": { "type": "string" } },
+    "triggered_by_gates": { "type": "array", "items": { "type": "string" } }
+  }
+}

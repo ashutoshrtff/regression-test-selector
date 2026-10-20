@@ -1,0 +1,35 @@
+# Resilience & Retry Hard Gates
+# Mandates transient failure recovery, backoff validation, and safe retry limits.
+
+rules:
+  - rule_id: "GATE-RET-001"
+    name: "Transient Downstream Failure Retry with Backoff"
+    category: "RESILIENCE"
+    severity: "BLOCKER"
+    mandatory: true
+    source_standard: "Bank Resilience Architecture Standard 4.1 - Fault Tolerance"
+    version: "1.0.0"
+    description: "Services interacting with payment schemes or core banking backends must implement retry with backoff on transient errors (503 Service Unavailable, Gateway Timeout) and prove recovery or terminal exhaustion."
+    applies_to:
+      domains: ["PAYMENTS", "SETTLEMENT"]
+      methods: ["POST", "PUT"]
+    required_outcomes:
+      - "Verify automatic retry is triggered when downstream system returns HTTP 503 or network socket timeout."
+      - "Verify request succeeds if downstream recovers on retry."
+      - "Verify retries cease after max attempts (e.g. 3) with an appropriate terminal error."
+    failure_criteria: "No test case asserts retry count, backoff delay, or recovery behavior when downstream returns 503 or transient timeout."
+
+  - rule_id: "GATE-RET-002"
+    name: "Idempotent Safe-Retry Boundary"
+    category: "RESILIENCE"
+    severity: "CRITICAL"
+    mandatory: true
+    source_standard: "PSP Platform Engineering Gate 2.4 - Safe Retries"
+    version: "1.0.0"
+    description: "Retries on non-idempotent HTTP methods (such as POST) must only occur when an Idempotency-Key or transaction unique identifier is propagated."
+    applies_to:
+      domains: ["PAYMENTS"]
+      methods: ["POST"]
+    required_outcomes:
+      - "Verify retries send the identical Idempotency-Key header on every retry attempt."
+    failure_criteria: "Retries generate fresh transaction tokens or omit the idempotency header."

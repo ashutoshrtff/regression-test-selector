@@ -1,0 +1,33 @@
+# API Quality & Contract Hard Gates
+# Mandates request/response schema conformity, status codes, and error formatting.
+
+rules:
+  - rule_id: "GATE-API-001"
+    name: "API Contract and Status Code Conformity"
+    category: "API_STANDARDS"
+    severity: "CRITICAL"
+    mandatory: true
+    source_standard: "OpenAPI Specification 3.0 & Bank API Guidelines"
+    version: "1.0.0"
+    description: "All endpoints must have verified test assertions covering success (200/201) and invalid client input (400 Bad Request)."
+    applies_to:
+      domains: ["PAYMENTS", "AUTH", "CORE", "SETTLEMENT", "REPORTING"]
+      methods: ["POST", "PUT", "PATCH"]
+    required_outcomes:
+      - "Verify HTTP 200/201 response schema conformity on valid payload."
+      - "Verify HTTP 400 Bad Request on malformed JSON or invalid parameter types."
+    failure_criteria: "Missing test assertions verifying HTTP 400 on malformed payloads."
+
+  - rule_id: "GATE-API-002"
+    name: "Standardized Error Response Structure"
+    category: "API_STANDARDS"
+    severity: "MAJOR"
+    mandatory: false
+    source_standard: "RFC 7807 Problem Details for HTTP APIs"
+    version: "1.0.0"
+    description: "Error responses must contain structured error codes and correlation IDs for observability."
+    applies_to:
+      domains: ["PAYMENTS", "CORE"]
+    required_outcomes:
+      - "Verify error response payload includes errorCode and traceId fields."
+    failure_criteria: "Error responses return raw strings or stack traces rather than standardized JSON envelope."

@@ -1,0 +1,54 @@
+# Payments Domain Quality Gates
+# Mandates distinct controls for Request Idempotency, Business Duplicate Detection, and Financial Integrity.
+
+rules:
+  - rule_id: "GATE-PAY-001"
+    name: "Request Idempotency Control (Technical Duplicate Safety)"
+    category: "PAYMENT_CORRECTNESS"
+    severity: "BLOCKER"
+    mandatory: true
+    source_standard: "PSP Platform Standards - Section 5.1 (Idempotency Key Protocol)"
+    version: "1.0.0"
+    description: "Repeated submission of the same logical request using the same 'Idempotency-Key' HTTP header must return the original cached processing outcome without executing secondary financial side-effects (e.g. charging a card twice)."
+    applies_to:
+      domains: ["PAYMENTS"]
+      methods: ["POST"]
+    required_outcomes:
+      - "Verify initial request with new Idempotency-Key processes and caches transaction."
+      - "Verify replaying the request with the identical Idempotency-Key returns cached HTTP response with identical transaction ID."
+      - "Verify database/ledger registers exactly one financial debit."
+    failure_criteria: "No test asserts that repeating a request with the same Idempotency-Key yields the original response without duplicate debit."
+
+  - rule_id: "GATE-PAY-002"
+    name: "Business Duplicate Detection (Semantic Transaction Collision)"
+    category: "PAYMENT_CORRECTNESS"
+    severity: "BLOCKER"
+    mandatory: true
+    source_standard: "SWIFT / ISO 20022 Duplicate Payment Prevention Standard"
+    version: "1.0.0"
+    description: "Separate submissions with different request IDs or idempotency keys that represent the same business transaction (e.g. identical source account, destination account, amount, currency, and reference submitted within a 60-second velocity window) must be rejected with HTTP 409 Conflict."
+    applies_to:
+      domains: ["PAYMENTS"]
+      methods: ["POST"]
+    required_outcomes:
+      - "Verify a new request with identical business fields (amount, recipient, reference) within velocity window returns HTTP 409 Conflict."
+      - "Verify error code 'DUPLICATE_PAYMENT' or 'BUSINESS_DUPLICATE_DETECTED' is returned."
+      - "Verify transaction is flagged for operator review and not debited."
+    failure_criteria: "No automated test asserts HTTP 409 Conflict rejection when separate requests have duplicate business attributes."
+
+  - rule_id: "GATE-PAY-003"
+    name: "Payment Amount and Currency Integrity Validation"
+    category: "PAYMENT_CORRECTNESS"
+    severity: "BLOCKER"
+    mandatory: true
+    source_standard: "ISO 4217 Currency Standards & Financial Calculation Integrity"
+    version: "1.0.0"
+    description: "Payment APIs must validate that amounts are positive, conform to minor-unit decimal limits, and utilize valid ISO 4217 currency codes. Negative, zero, or out-of-scale amounts must be rejected."
+    applies_to:
+      domains: ["PAYMENTS"]
+      methods: ["POST", "PUT"]
+    required_outcomes:
+      - "Verify rejection (HTTP 400 or 422) for negative or zero payment amounts."
+      - "Verify rejection for unsupported or invalid ISO 4217 currency codes."
+      - "Verify minor unit decimal scale constraints (e.g. JPY 0 decimals, USD/EUR 2 decimals)."
+    failure_criteria: "Missing test cases asserting rejection of negative or zero payment amounts."

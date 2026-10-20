@@ -1,0 +1,34 @@
+# Security Hard Gates
+# Mandates token verification, unauthenticated rejection, and permission controls.
+
+rules:
+  - rule_id: "GATE-SEC-001"
+    name: "Mandatory Authentication Token Validation"
+    category: "SECURITY"
+    severity: "BLOCKER"
+    mandatory: true
+    source_standard: "PCI-DSS 4.0 Req 8.2 & OAuth2 Security BCP"
+    version: "1.0.0"
+    description: "Every protected business API must require and validate an authenticated security token (Bearer JWT or mTLS)."
+    applies_to:
+      domains: ["PAYMENTS", "AUTH", "CORE", "SETTLEMENT"]
+      methods: ["POST", "PUT", "DELETE", "PATCH", "GET"]
+    required_outcomes:
+      - "Verify HTTP 401 Unauthorized is returned when Authorization header is omitted or token is expired."
+      - "Verify valid token allows authorized execution."
+    failure_criteria: "No automated test asserts 401 Unauthorized rejection on missing or invalid token."
+
+  - rule_id: "GATE-SEC-002"
+    name: "Role-Based Access Control and Authorization Enforcement"
+    category: "SECURITY"
+    severity: "CRITICAL"
+    mandatory: true
+    source_standard: "OWASP API Security Top 10 - API1:2023 Broken Object Level Authorization"
+    version: "1.0.0"
+    description: "APIs exposing sensitive financial actions must enforce role/permission boundaries and reject unauthorized users with 403 Forbidden."
+    applies_to:
+      domains: ["PAYMENTS", "SETTLEMENT"]
+      methods: ["POST", "DELETE"]
+    required_outcomes:
+      - "Verify HTTP 403 Forbidden when caller lacks required merchant or administrative authority."
+    failure_criteria: "No test case asserts HTTP 403 Forbidden response for unauthorized caller credentials."

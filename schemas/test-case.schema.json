@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DiscoveredTestCase",
+  "description": "Schema for discovered automated test cases and their assertion evidence",
+  "type": "object",
+  "required": ["test_id", "title", "file_path", "line_number", "framework"],
+  "properties": {
+    "test_id": { "type": "string" },
+    "title": { "type": "string" },
+    "file_path": { "type": "string" },
+    "line_number": { "type": "integer" },
+    "framework": { "type": "string", "enum": ["playwright-ts", "selenium-java", "gherkin", "pytest"] },
+    "in_regression_suite": { "type": "boolean" },
+    "in_smoke_suite": { "type": "boolean" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "jira_keys": { "type": "array", "items": { "type": "string" } },
+    "endpoints_visited": { "type": "array", "items": { "type": "string" } },
+    "routes_visited": { "type": "array", "items": { "type": "string" } },
+    "http_methods": { "type": "array", "items": { "type": "string" } },
+    "headers_sent": { "type": "array", "items": { "type": "string" } },
+    "page_objects_used": { "type": "array", "items": { "type": "string" } },
+    "assertions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["assertion_type", "target", "raw_statement"],
+        "properties": {
+          "assertion_type": { "type": "string" },
+          "target": { "type": "string" },
+          "raw_statement": { "type": "string" },
+          "line_number": { "type": "integer" },
+          "is_deep_assertion": { "type": "boolean" }
+        }
+      }
+    },
+    "execution_status": {
+      "type": "string",
+      "enum": ["EXECUTION_PASSED", "EXECUTION_FAILED", "TEST_NOT_EXECUTED", "EVIDENCE_MISSING"]
+    },
+    "last_execution_timestamp": { "type": ["string", "null"] },
+    "execution_duration_sec": { "type": "number" }
+  }
+}

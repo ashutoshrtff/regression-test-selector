@@ -1,0 +1,19 @@
+# Circuit Breaker & Failure Isolation Hard Gates
+# Mandates failure isolation and fast-failing fallback.
+
+rules:
+  - rule_id: "GATE-CB-001"
+    name: "Downstream Circuit Breaker Failure Isolation"
+    category: "RESILIENCE"
+    severity: "MAJOR"
+    mandatory: true
+    source_standard: "Bank Resilience Architecture Standard 4.3 - Circuit Breaking"
+    version: "1.0.0"
+    description: "When consecutive downstream calls fail past threshold, the circuit breaker must open, fast-failing subsequent calls without blocking worker threads."
+    applies_to:
+      domains: ["PAYMENTS", "SETTLEMENT"]
+      methods: ["POST"]
+    required_outcomes:
+      - "Verify circuit opens after configured consecutive failures."
+      - "Verify fast-fail response or fallback execution while circuit is open."
+    failure_criteria: "System continues bombarding failing downstream or exhausts connection pool."
