@@ -1,0 +1,32 @@
+{
+  "tests/payments/payment-submission.spec.ts:12:[PAY-900] Successfully submit real-time credit payment @regression": {
+    "status": "EXECUTION_PASSED",
+    "timestamp": "2026-10-20T08:15:22Z",
+    "duration": 2.4,
+    "framework": "playwright-ts"
+  },
+  "tests/payments/payment-submission.spec.ts:34:[PAY-900] Replaying request with same Idempotency-Key returns cached response without duplicate debit @regression": {
+    "status": "EXECUTION_PASSED",
+    "timestamp": "2026-10-20T08:15:25Z",
+    "duration": 1.9,
+    "framework": "playwright-ts"
+  },
+  "tests/payments/payment-submission.spec.ts:58:[PAY-900] Reject duplicate payment with 409 Conflict within 60s window @regression": {
+    "status": "EXECUTION_PASSED",
+    "timestamp": "2026-10-20T08:15:28Z",
+    "duration": 2.1,
+    "framework": "playwright-ts"
+  },
+  "tests/payments/payment-submission.spec.ts:80:[PAY-900] Reject unauthenticated payment with 401 Unauthorized @regression": {
+    "status": "EXECUTION_PASSED",
+    "timestamp": "2026-10-20T08:15:30Z",
+    "duration": 0.8,
+    "framework": "playwright-ts"
+  },
+  "tests/payments/payment-submission.spec.ts:98:[PAY-900] Reject negative payment amount with 400 Bad Request @regression": {
+    "status": "EXECUTION_PASSED",
+    "timestamp": "2026-10-20T08:15:31Z",
+    "duration": 0.7,
+    "framework": "playwright-ts"
+  }
+}

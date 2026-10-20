@@ -1,0 +1,72 @@
+openapi: 3.0.3
+info:
+  title: Payment Submission API
+  version: 1.0.0
+  description: Real-time ISO 20022 compliant payment processing API
+paths:
+  /api/v1/payments/process:
+    post:
+      operationId: processPayment
+      summary: Submit single real-time payment
+      description: Validates, dedupes, and submits a real-time credit payment to clearing networks.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: Client-generated unique UUIDv4 token for idempotent replay safety
+          schema:
+            type: string
+            format: uuid
+        - name: X-Correlation-ID
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - currency
+                - debtorAccount
+                - creditorAccount
+              properties:
+                amount:
+                  type: number
+                  format: double
+                  minimum: 0.01
+                currency:
+                  type: string
+                  example: USD
+                debtorAccount:
+                  type: string
+                creditorAccount:
+                  type: string
+                reference:
+                  type: string
+      responses:
+        '200':
+          description: Payment accepted and submitted to clearing scheme
+        '400':
+          description: Malformed payload or invalid amount/currency
+        '401':
+          description: Missing or expired Bearer token
+        '403':
+          description: Insufficient tenant authority to disburse funds
+        '409':
+          description: Duplicate business payment detected within velocity window
+        '503':
+          description: Downstream clearing scheme unavailable
+        '504':
+          description: Downstream gateway timeout after retry exhaustion
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

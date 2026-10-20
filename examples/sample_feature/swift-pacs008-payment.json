@@ -1,0 +1,15 @@
+{
+  "message_type": "ISO20022-pacs.008.001.08",
+  "name": "Financial Institutional Direct Debit / Credit Transfer",
+  "interface": "POST /api/v1/payments/process",
+  "mandatory_fields": [
+    "amount",
+    "currency",
+    "debtorAccount",
+    "creditorAccount"
+  ],
+  "rules": {
+    "currency": "ISO 4217 3-letter uppercase",
+    "amount": "Decimal > 0.00"
+  }
+}
